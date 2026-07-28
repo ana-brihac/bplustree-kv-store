@@ -196,7 +196,7 @@ int find_key_in_node(Node *node, int key) {
 	int r = node->num_keys - 1;
 	int l = 0, m;
 
-	while (l <= r) {
+	while (l <= r) { // binary search in tree for the key
 		m = (l + r) / 2;
 
 		if (node->keys[m] == key) {
@@ -276,6 +276,8 @@ Node *remove_from_leaf(Node *leaf, int key) {
 	}
 
 	leaf->num_keys --;
+	leaf->keys[leaf->num_keys] = 0; // clearing the stale slot left after the shift
+	leaf->data.leaf.values[leaf->num_keys] = NULL;
 
 	return leaf;
 }
