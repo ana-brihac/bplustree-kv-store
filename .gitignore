@@ -1,0 +1,8 @@
+# Build artifacts
+testbptree
+tests/bin/*
+!tests/bin/.gitkeep
+
+# Test run results (generated, not source-controlled)
+tests/results/*
+!tests/results/.gitkeep

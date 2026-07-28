@@ -1,0 +1,12 @@
+[PASS] delete_existing_decrements_num_keys
+[PASS] delete_existing_key_gone
+[PASS] delete_existing_others_remain_10
+[PASS] delete_existing_others_remain_30
+[PASS] delete_shifts_keys_key0
+[PASS] delete_shifts_keys_key1
+[PASS] delete_first_decrements_num_keys
+[PASS] delete_first_key_gone
+[PASS] delete_first_shifts_key0
+[PASS] delete_first_shifts_key1
+[PASS] delete_missing_key_unchanged
+[PASS] delete_from_null
