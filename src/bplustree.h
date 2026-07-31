@@ -40,6 +40,7 @@ void insert_into_leaf_sorted(Node *leaf, int key, void *value);
 Node *split_leaf(Node *leaf);
 Node *split_inner_node(Node *node);
 Node *insert_into_parent(Node *parent, Node *left_child, int key, Node *right_child);
-Node *remove_from_leaf(Node *leaf, int key);
+bool try_borrow_from_left_sibling(Node *node, Node *parent, int index);
+bool try_borrow_from_right_sibling(Node *node, Node *parent, int index);
 
 #endif

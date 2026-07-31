@@ -336,3 +336,87 @@ Node *split_inner_node(Node *node) {
 
 	return new_node;
 }
+
+bool try_borrow_from_left_sibling(Node *node, Node *parent, int index) {
+	if (index <= 0) { //we don t have left siblings on negative positions
+		return false;
+	} 
+
+	Node *sibling = parent->data.inner.children[index - 1]; // the left sibling
+
+	if (sibling->num_keys > MAX_KEYS / 2) { //checking for balance
+		if (node->is_leaf) { //if is leaf
+			for (int i = node->num_keys; i > 0; i --) { // shifting the keys and values
+				node->keys[i] = node->keys[i - 1];
+				node->data.leaf.values[i] = node->data.leaf.values[i - 1];
+			}
+
+			node->keys[0] = sibling->keys[sibling->num_keys - 1]; // adding the borrowed key
+			node->data.leaf.values[0] = sibling->data.leaf.values[sibling->num_keys]; // adding the borrowed value
+
+			parent->keys[index - 1] = node->keys[0]; // adding the new key to the parent
+		} else { // if is inners
+			node->data.inner.children[node->num_keys + 1] = node->data.inner.children[node->num_keys];
+
+			for (int i = node->num_keys; i > 0; i --) {// shifting the keys and children
+				node->keys[i] = node->keys[i - 1];
+				node->data.inner.children[i] = node->data.inner.children[i - 1];
+			}
+
+			node->keys[0] = parent->keys[index - 1]; // adding the borrowed key
+			parent->keys[index - 1] = sibling->keys[sibling->num_keys - 1]; // adding the new key to the parent
+			node->data.inner.children[0] = sibling->data.inner.children[sibling->num_keys - 1]; // adding the borrowed child
+		}
+
+		// adjusting the numbers of the keys
+		sibling->num_keys--;
+        node->num_keys++;
+
+		return true;
+	} else {
+		return false;
+	}
+}
+
+bool try_borrow_from_right_sibling(Node *node, Node *parent, int index) {
+	if (index >= parent->num_keys) { // the index can not be greater than the maximum number admited
+		return false;
+	} 
+
+	Node *sibling = parent->data.inner.children[index + 1];
+
+	if (sibling->num_keys > MAX_KEYS / 2) { // checkinh for balance
+		if (node->is_leaf) { //if is leaf
+			node->keys[node->num_keys] = sibling->keys[0]; // adding the borrowed key
+			node->data.leaf.values[node->num_keys] = sibling->data.leaf.values[0]; // adding the borrowed value
+
+
+			for (int i = 0; i < sibling->num_keys - 1; i ++) { // shifting the keys and values
+				sibling->keys[i] = sibling->keys[i + 1];
+                sibling->data.leaf.values[i] = sibling->data.leaf.values[i + 1];
+			}
+
+			parent->keys[index] = sibling->keys[0]; // adding the new key to the parent
+		} else { // if is inners
+			node->keys[node->num_keys] = parent->keys[index]; // adding the borrowed key
+			parent->keys[index] = sibling->keys[0]; // adding the new key to the parent
+			node->data.inner.children[node->num_keys + 1] = sibling->data.inner.children[0]; // adding the borrowed child
+
+			for (int i = 0; i < sibling->num_keys - 1; i ++) {
+				sibling->keys[i] = sibling->keys[i + 1];
+			}
+			
+			for (int i = 0; i < sibling->num_keys; i ++) {
+				sibling->data.inner.children[i] = sibling->data.inner.children[i + 1];
+			}
+		}
+
+		// adjusting the numbers of the keys
+		sibling->num_keys--;
+        node->num_keys++;
+
+		return true;
+	} else {
+		return false;
+	}
+}
