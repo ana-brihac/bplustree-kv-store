@@ -6,6 +6,7 @@ SRC    = src/bplustree.c
 TESTS = test_create \
         test_insert_basic \
         test_insert_no_split \
+        test_validate \
         test_insert_into_leaf_sorted \
         test_insert_with_split \
         test_split_leaf \
