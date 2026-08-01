@@ -1,5 +1,5 @@
 CC     = gcc
-CFLAGS = -Wall -Wextra -g -fsanitize=address
+CFLAGS = -Wall -Wextra -g -fsanitize=address,undefined
 SRC    = src/bplustree.c
 
 # ---------- test binaries ----------

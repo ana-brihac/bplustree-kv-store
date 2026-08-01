@@ -77,9 +77,7 @@ Node *insert(Node *root, int key, void *value) {
 	// step 4: push guidepost key up into the parent
 	Node *new_root = insert_into_parent(leaf->parent, leaf, guidepost, new_leaf);
 
-	if (!leaf->parent) { // we split the root, tree grew by one level
-		new_leaf->parent = new_root;
-		leaf->parent = new_root;
+	if (new_root) { // a new root was created (leaf was root, or cascading inner split)
 		return new_root;
 	}
 
@@ -113,41 +111,40 @@ void *search(Node *node, int key) {
 }
 
 Node *deleteNode(Node *root, int key) {
-	Node *delNode = root;
-	while (delNode && !delNode->is_leaf) {
+	Node *leaf = root; // traverse down to the correct leaf
+	while (leaf && !leaf->is_leaf) {
 		int i = 0;
-		while (i < delNode->num_keys && key >= delNode->keys[i]) {
+		while (i < leaf->num_keys && key >= leaf->keys[i]) {
 			i++;
 		}
-		delNode = delNode->data.inner.children[i];
+		leaf = leaf->data.inner.children[i];
 	}
 
-	if (!delNode) { // checking if we have a node with this key in our tree
-		return root;
+	if (!leaf) return root; // empty tree
+
+	int found = -1; // verify the key actually exists in the leaf
+	for (int i = 0; i < leaf->num_keys; i++) {
+		if (leaf->keys[i] == key) { found = i; break; }
+	}
+	if (found == -1) return root; // key not in tree
+
+	remove_from_leaf(leaf, key); // remove from leaf (shifts remaining entries left, clears stale slot)
+
+	int min_keys = (MAX_KEYS + 1) / 2; // check for underflow — minimum occupancy is ceil(MAX_KEYS / 2)
+	if (leaf->num_keys >= min_keys || !leaf->parent) {
+		return root; // no underflow, or leaf is the root
 	}
 
-	for (int i = 0; i < delNode->num_keys; i ++) {
-		if (delNode->keys[i] == key) {
-			free(delNode->data.leaf.values[i]);
+	Node *parent = leaf->parent; // find which index this leaf sits at in its parent's children array
+	int index = 0;
+	while (index <= parent->num_keys && parent->data.inner.children[index] != leaf) {
+		index++;
+	}
 
-			for (int j = i; j < delNode->num_keys - 1; j ++) {
-				// we are removing the key and value from the node
-				// we are shifting the values to the left
-				delNode->data.leaf.values[j] = delNode->data.leaf.values[j + 1];
-				delNode->keys[j] = delNode->keys[j + 1];
-			}
-
-			delNode->num_keys --;
-			delNode->keys[delNode->num_keys] = 0; // clearing the stale slot left after the shift
-			delNode->data.leaf.values[delNode->num_keys] = NULL;
-
-			// after deleting the key we need to check if the tree is still balanced
-			// but in my courses I read that we don t need to check for balance right away
-			// we are doing this verifications at an interval, because we can have multiple deletions
-			// and multiple insertions, so maybe we don t need to balance the tree everytime
-
-			break;
-		}
+	if (try_borrow_from_left_sibling(leaf, parent, index)) { // try to borrow from a sibling (merge not yet implemented)
+		// borrow from left succeeded
+	} else if (try_borrow_from_right_sibling(leaf, parent, index)) {
+		// borrow from right succeeded
 	}
 
 	return root;
@@ -158,8 +155,13 @@ void freeNode(Node *node) {
 		return;
 	}
 
-	if (!node->is_leaf) { //if is inner, freeing every childer node of the inner node
-		for (int x = 0; x < node->num_keys + 1; x++) {
+	if (node->is_leaf) { // free leaf values first to avoid memory leaks
+		for (int i = 0; i < node->num_keys; i++) {
+			free(node->data.leaf.values[i]);
+			node->data.leaf.values[i] = NULL;
+		}
+	} else { // if is inner, recursively free all children first
+		for (int x = 0; x <= node->num_keys; x++) {
 			freeNode(node->data.inner.children[x]);
 		}
 	}
@@ -212,13 +214,15 @@ int find_key_in_node(Node *node, int key) {
 }
 
 Node *insert_into_parent(Node *parent, Node *left_child, int key, Node *right_child) {
-	if (!parent) { // no parent means the leaf was the root, create a brand new root
+	if (!parent) { // no parent means the node was the root — create a brand new root
 		Node *new_root = create_inner_node();
 
 		new_root->keys[0] = key;
 		new_root->data.inner.children[0] = left_child;
 		new_root->data.inner.children[1] = right_child;
 		new_root->num_keys = 1;
+		left_child->parent = new_root; // keep parent pointers up to date
+		right_child->parent = new_root;
 
 		return new_root;
 	}
@@ -236,22 +240,28 @@ Node *insert_into_parent(Node *parent, Node *left_child, int key, Node *right_ch
 		right_child->parent = parent; // keeping the parent pointer up to date
 
 		parent->num_keys ++;
+		return NULL; // no new root was created
 	} else {
+		bool parent_was_root = (parent->parent == NULL);
 		int split_boundary = parent->keys[parent->num_keys / 2]; // save the guidepost before it goes up
 
 		Node *new_inner = split_inner_node(parent); // split the full parent, pushing guidepost to grandparent
+
+		// if parent was the root, insert_into_parent (inside split_inner_node) just created a new root
+		// and set parent->parent to point at it
+		Node *new_root = parent_was_root ? parent->parent : NULL;
 
 		if (key < split_boundary) { // new key goes into the left (original) half
 			insert_into_parent(parent, left_child, key, right_child);
 		} else { // new key goes into the right (new) half
 			insert_into_parent(new_inner, left_child, key, right_child);
 		}
-	}
 
-	return parent;
+		return new_root; // propagate new root upward (NULL if none was created at this level)
+	}
 }
 
-void *find_child_index(Node *inner, int key) {
+Node *find_child_index(Node *inner, int key) {
 	if (!inner || inner->is_leaf) {
 		return NULL;
 	}
@@ -315,11 +325,11 @@ Node *split_inner_node(Node *node) {
 
 	Node *new_node = create_inner_node();
 
-	// we need to delete this key from the node, we are pushing it to the parent
+	// we need to delete this key from the node, we are pushing it to the grandparent
 	node->keys[middle] = 0;
 	// children[middle] stays in the left node — only the key goes up, not its child
 
-	for (int i = middle + 1; i < node->num_keys; i ++) { // we are spliting the children evenly
+	for (int i = middle + 1; i < node->num_keys; i ++) { // we are splitting the children evenly
 		new_node->data.inner.children[i - middle - 1] = node->data.inner.children[i];
 		node->data.inner.children[i] = NULL;
 		new_node->keys[i - middle - 1] = node->keys[i];
@@ -332,45 +342,70 @@ Node *split_inner_node(Node *node) {
 
 	node->num_keys = middle; // left node keeps keys[0..middle-1] and children[0..middle]
 
-	insert_into_parent(node->parent, node, guidepost, new_node); // push guidepost up to the parent
+	// update parent pointers for all children that moved to new_node
+	for (int i = 0; i <= new_node->num_keys; i++) {
+		if (new_node->data.inner.children[i]) {
+			new_node->data.inner.children[i]->parent = new_node;
+		}
+	}
+
+	insert_into_parent(node->parent, node, guidepost, new_node); // push guidepost up; sets new_node->parent inside
 
 	return new_node;
 }
 
 bool try_borrow_from_left_sibling(Node *node, Node *parent, int index) {
-	if (index <= 0) { //we don t have left siblings on negative positions
+	if (index <= 0) { // no left sibling on negative positions
 		return false;
-	} 
+	}
 
 	Node *sibling = parent->data.inner.children[index - 1]; // the left sibling
 
-	if (sibling->num_keys > MAX_KEYS / 2) { //checking for balance
-		if (node->is_leaf) { //if is leaf
-			for (int i = node->num_keys; i > 0; i --) { // shifting the keys and values
+	if (sibling->num_keys > MAX_KEYS / 2) { // sibling has spare keys
+		if (node->is_leaf) {
+			// shift node's keys and values right to make room at slot 0
+			for (int i = node->num_keys; i > 0; i--) {
 				node->keys[i] = node->keys[i - 1];
 				node->data.leaf.values[i] = node->data.leaf.values[i - 1];
 			}
 
-			node->keys[0] = sibling->keys[sibling->num_keys - 1]; // adding the borrowed key
-			node->data.leaf.values[0] = sibling->data.leaf.values[sibling->num_keys]; // adding the borrowed value
+			// borrow the last key and value from the left sibling
+			node->keys[0] = sibling->keys[sibling->num_keys - 1];
+			node->data.leaf.values[0] = sibling->data.leaf.values[sibling->num_keys - 1]; // fixed: was [num_keys]
 
-			parent->keys[index - 1] = node->keys[0]; // adding the new key to the parent
-		} else { // if is inners
+			// clear the now-stale last slot in the sibling
+			sibling->keys[sibling->num_keys - 1] = 0;
+			sibling->data.leaf.values[sibling->num_keys - 1] = NULL;
+
+			// update the guidepost in the parent (new smallest key of this node)
+			parent->keys[index - 1] = node->keys[0];
+		} else {
+			// shift node's children right to make room at slot 0
 			node->data.inner.children[node->num_keys + 1] = node->data.inner.children[node->num_keys];
 
-			for (int i = node->num_keys; i > 0; i --) {// shifting the keys and children
+			for (int i = node->num_keys; i > 0; i--) { // shifting the keys and children
 				node->keys[i] = node->keys[i - 1];
 				node->data.inner.children[i] = node->data.inner.children[i - 1];
 			}
 
-			node->keys[0] = parent->keys[index - 1]; // adding the borrowed key
-			parent->keys[index - 1] = sibling->keys[sibling->num_keys - 1]; // adding the new key to the parent
-			node->data.inner.children[0] = sibling->data.inner.children[sibling->num_keys - 1]; // adding the borrowed child
+			node->keys[0] = parent->keys[index - 1]; // pull the separator from the parent down into node
+			// bring sibling's rightmost child over as node's new leftmost child
+			node->data.inner.children[0] = sibling->data.inner.children[sibling->num_keys]; // fixed: was [num_keys-1]
+			if (node->data.inner.children[0]) {
+				node->data.inner.children[0]->parent = node; // update parent pointer of adopted child
+			}
+
+			// push sibling's last key up to replace the parent separator
+			parent->keys[index - 1] = sibling->keys[sibling->num_keys - 1];
+
+			// clear the now-stale last key and child in the sibling
+			sibling->keys[sibling->num_keys - 1] = 0;
+			sibling->data.inner.children[sibling->num_keys] = NULL;
 		}
 
-		// adjusting the numbers of the keys
+		// adjust key counts
 		sibling->num_keys--;
-        node->num_keys++;
+		node->num_keys++;
 
 		return true;
 	} else {
@@ -379,44 +414,61 @@ bool try_borrow_from_left_sibling(Node *node, Node *parent, int index) {
 }
 
 bool try_borrow_from_right_sibling(Node *node, Node *parent, int index) {
-	if (index >= parent->num_keys) { // the index can not be greater than the maximum number admited
+	if (index >= parent->num_keys) { // no right sibling available
 		return false;
-	} 
+	}
 
 	Node *sibling = parent->data.inner.children[index + 1];
 
-	if (sibling->num_keys > MAX_KEYS / 2) { // checkinh for balance
-		if (node->is_leaf) { //if is leaf
-			node->keys[node->num_keys] = sibling->keys[0]; // adding the borrowed key
-			node->data.leaf.values[node->num_keys] = sibling->data.leaf.values[0]; // adding the borrowed value
+	if (sibling->num_keys > MAX_KEYS / 2) { // sibling has spare keys
+		if (node->is_leaf) {
+			// borrow sibling's first key and value
+			node->keys[node->num_keys] = sibling->keys[0];
+			node->data.leaf.values[node->num_keys] = sibling->data.leaf.values[0];
 
-
-			for (int i = 0; i < sibling->num_keys - 1; i ++) { // shifting the keys and values
+			// shift sibling's keys and values left
+			for (int i = 0; i < sibling->num_keys - 1; i++) {
 				sibling->keys[i] = sibling->keys[i + 1];
-                sibling->data.leaf.values[i] = sibling->data.leaf.values[i + 1];
+				sibling->data.leaf.values[i] = sibling->data.leaf.values[i + 1];
 			}
 
-			parent->keys[index] = sibling->keys[0]; // adding the new key to the parent
-		} else { // if is inners
-			node->keys[node->num_keys] = parent->keys[index]; // adding the borrowed key
-			parent->keys[index] = sibling->keys[0]; // adding the new key to the parent
-			node->data.inner.children[node->num_keys + 1] = sibling->data.inner.children[0]; // adding the borrowed child
+			// clear the now-stale last slot in the sibling
+			sibling->keys[sibling->num_keys - 1] = 0;
+			sibling->data.leaf.values[sibling->num_keys - 1] = NULL;
 
-			for (int i = 0; i < sibling->num_keys - 1; i ++) {
+			// update the guidepost in the parent (new smallest key of sibling)
+			parent->keys[index] = sibling->keys[0];
+		} else {
+			// pull the parent separator down into node's last key slot
+			node->keys[node->num_keys] = parent->keys[index];
+			// bring sibling's first child over as node's new last child
+			node->data.inner.children[node->num_keys + 1] = sibling->data.inner.children[0];
+			if (node->data.inner.children[node->num_keys + 1]) {
+				node->data.inner.children[node->num_keys + 1]->parent = node; // update adopted child's parent
+			}
+
+			// push sibling's first key up to replace the parent separator
+			parent->keys[index] = sibling->keys[0];
+
+			// shift sibling's keys left and clear stale last key
+			for (int i = 0; i < sibling->num_keys - 1; i++) {
 				sibling->keys[i] = sibling->keys[i + 1];
 			}
-			
-			for (int i = 0; i < sibling->num_keys; i ++) {
+			sibling->keys[sibling->num_keys - 1] = 0;
+
+			// shift sibling's children left and clear stale last child
+			for (int i = 0; i < sibling->num_keys; i++) {
 				sibling->data.inner.children[i] = sibling->data.inner.children[i + 1];
 			}
+			sibling->data.inner.children[sibling->num_keys] = NULL;
 		}
 
-		// adjusting the numbers of the keys
+		// adjust key counts
 		sibling->num_keys--;
-        node->num_keys++;
+		node->num_keys++;
 
 		return true;
 	} else {
 		return false;
 	}
-}
+} 
