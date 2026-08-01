@@ -1,0 +1,5 @@
+[PASS] test_basic_range
+[PASS] test_range_outside
+[PASS] test_range_all
+[PASS] test_range_empty
+All range_search tests passed.

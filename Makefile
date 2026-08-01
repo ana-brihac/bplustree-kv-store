@@ -17,7 +17,8 @@ TESTS = test_create \
         test_borrow_left \
         test_borrow_right \
         test_merge \
-        test_free
+        test_free \
+        test_range_search
 
 BIN_DIR     = tests/bin
 RESULT_DIR  = tests/results

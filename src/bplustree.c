@@ -676,3 +676,58 @@ bool validate_tree(Node *root) {
 	
 	return helper_validate_tree(root, 0, &leaf_depth);
 }
+
+bool range_search(Node *node, int start, int end, int result_keys[], void *result_values[], int *num_res) {
+	if (!node) {
+		return false;
+	}
+	
+	if (node->is_leaf) { // if leaf, going through its keys to see where our range starts
+		for (int i = 0; i < node->num_keys; i ++) {
+			if (node->keys[i] >= start) { // found the start key or a bigger one
+				
+				for (int j = i; j < node->num_keys; j ++) { 
+					if (node->keys[j] > end) {
+						return true;
+					}
+
+					result_keys[*num_res] = node->keys[j];
+					result_values[*num_res] = node->data.leaf.values[j];
+					(*num_res) ++; 
+				}
+				
+				break; // going out to check the siblings
+			}
+		}
+
+		Node *curr_node = node->data.leaf.next; 
+		while (curr_node != NULL) { // going right through the linked leaves
+			for (int k = 0; k < curr_node->num_keys; k ++) {
+				if (curr_node->keys[k] > end) { 
+					return true;
+				}
+
+				if (curr_node->keys[k] >= start) { 
+					result_keys[*num_res] = curr_node->keys[k];
+					result_values[*num_res] = curr_node->data.leaf.values[k];
+					(*num_res) ++;
+				}
+			}
+			curr_node = curr_node->data.leaf.next;
+		}
+		return true;
+
+	} else { // if inner, checking the children which keys are smaller than our start key
+		for (int i = 0; i < node->num_keys; i ++) {
+			if (start < node->keys[i]) { 
+				return range_search(node->data.inner.children[i], start, end, result_keys, result_values, num_res);
+			}
+		}
+
+		// recursive search if we don't find the rigth node
+		// the very last node on the far right is the safest next point
+		return range_search(node->data.inner.children[node->num_keys], start, end, result_keys, result_values, num_res); 
+	}
+
+	return false;
+}
