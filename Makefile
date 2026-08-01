@@ -6,9 +6,15 @@ SRC    = src/bplustree.c
 TESTS = test_create \
         test_insert_basic \
         test_insert_no_split \
+        test_insert_into_leaf_sorted \
+        test_insert_with_split \
+        test_split_leaf \
+        test_remove_from_leaf \
         test_search_leaf \
         test_search_tree \
         test_delete \
+        test_borrow_left \
+        test_borrow_right \
         test_free
 
 BIN_DIR     = tests/bin
