@@ -55,7 +55,7 @@ Node *insert(Node *root, int key, void *value) {
 	Node *leaf = root;
 	while (!leaf->is_leaf) {
 		int i = 0;
-		while (i < leaf->num_keys && key > leaf->keys[i]) { // finding the correct child
+		while (i < leaf->num_keys && key >= leaf->keys[i]) { // finding the correct child
 			i++;
 		}
 		leaf = leaf->data.inner.children[i];
@@ -135,7 +135,9 @@ Node *deleteNode(Node *root, int key) {
 
 	Node *node = leaf;
 	while (node && node->parent) {
-		int min_keys = (MAX_KEYS + 1) / 2; // check for underflow — minimum occupancy is ceil(MAX_KEYS / 2)
+		int min_keys = node->is_leaf
+			? (MAX_KEYS + 1) / 2        // leaf: ceil(MAX_KEYS / 2)
+			: (MAX_KEYS + 1) / 2 - 1;  // inner: ceil(MAX_KEYS / 2) - 1, standard B+Tree minimum
 		if (node->num_keys >= min_keys) {
 			break; // no underflow, or node has enough keys
 		}
@@ -265,14 +267,9 @@ Node *insert_into_parent(Node *parent, Node *left_child, int key, Node *right_ch
 		parent->num_keys ++;
 		return NULL; // no new root was created
 	} else {
-		bool parent_was_root = (parent->parent == NULL);
 		int split_boundary = parent->keys[parent->num_keys / 2]; // save the guidepost before it goes up
 
 		Node *new_inner = split_inner_node(parent); // split the full parent, pushing guidepost to grandparent
-
-		// if parent was the root, insert_into_parent (inside split_inner_node) just created a new root
-		// and set parent->parent to point at it
-		Node *new_root = parent_was_root ? parent->parent : NULL;
 
 		if (key < split_boundary) { // new key goes into the left (original) half
 			insert_into_parent(parent, left_child, key, right_child);
@@ -280,7 +277,10 @@ Node *insert_into_parent(Node *parent, Node *left_child, int key, Node *right_ch
 			insert_into_parent(new_inner, left_child, key, right_child);
 		}
 
-		return new_root; // propagate new root upward (NULL if none was created at this level)
+		// walk up from parent to find the actual root after all cascading splits settle
+		Node *new_root = parent;
+		while (new_root->parent) new_root = new_root->parent;
+		return new_root; // propagate actual root upward so insert() can update its pointer
 	}
 }
 
@@ -297,8 +297,7 @@ Node *find_child_index(Node *inner, int key) {
 Node *remove_from_leaf(Node *leaf, int key) {
 	int k = find_key_in_node(leaf, key); // finding the index of the key to remove
 
-	if (k >= leaf->num_keys || leaf->keys[k] != key) { // key doesn't exist, nothing to remove
-		return leaf;
+	if (k >= leaf->num_keys || leaf->keys[k] != key) { // key doesn't exist, nothing to r 
 	}
 
 	free(leaf->data.leaf.values[k]); // freeing the value before shifting over it
@@ -497,9 +496,13 @@ bool try_borrow_from_right_sibling(Node *node, Node *parent, int index) {
 } 
 
 Node *merge_with_sibling(Node *node, Node *sibling, Node *parent, int index) {
-	if (node->num_keys + sibling->num_keys >= MAX_KEYS) { // checking if the merge is right
+	int merged = node->is_leaf
+		? node->num_keys + sibling->num_keys           // leaves: no separator key pulled in
+		: node->num_keys + sibling->num_keys + 1;      // inner: +1 for the separator key pulled down from parent
+
+	if (merged > MAX_KEYS) { // checking if the merge is right — combined keys would exceed node capacity
 		return NULL;
-	} 
+	}
 
 	if (node->is_leaf) {
 		for (int i = 0; i < sibling->num_keys; i ++) { // we are copying the keys and values 
@@ -552,7 +555,11 @@ bool helper_validate_tree(Node *node, int current_depth, int *expected_leaf_dept
 		return false;
 	}
 
-	if (node->num_keys < (MAX_KEYS + 1) / 2 && node->parent) { // bellow the minimum limit and is not the root
+	int min_keys = node->is_leaf
+		? (MAX_KEYS + 1) / 2        // leaf: ceil(MAX_KEYS / 2)
+		: (MAX_KEYS + 1) / 2 - 1;  // inner: ceil(MAX_KEYS / 2) - 1, standard B+Tree minimum
+
+	if (node->num_keys < min_keys && node->parent) { // bellow the minimum limit and is not the root
 		return false;
 	}
 
@@ -583,7 +590,7 @@ bool helper_validate_tree(Node *node, int current_depth, int *expected_leaf_dept
 			}
 		}
 
-		if (node->data.inner.children[node->num_keys + 1]) { // should be null, verifying the stale slots are cleared
+		if (node->num_keys < MAX_KEYS && node->data.inner.children[node->num_keys + 1]) { // should be null, verifying the stale slots are cleared
 			return false;
 		}
 
@@ -611,13 +618,13 @@ bool key_check_less(Node *a, int n) {
 		return true;
 	}
 
-	for (int i = 0; i < a->num_keys; i ++) {
-		if (a->keys[i] >= n) { // key violates the strict less-than boundary
-			return false;
+	if (a->is_leaf) { // only leaf keys hold real data — inner keys are routing guideposts, not data
+		for (int i = 0; i < a->num_keys; i ++) {
+			if (a->keys[i] >= n) { // key violates the strict less-than boundary
+				return false;
+			}
 		}
-	}
-
-	if (!a->is_leaf) { // recursively check all descendant leaves
+	} else { // recursively check all descendant leaves
 		for (int i = 0; i <= a->num_keys; i ++) {
 			if (!key_check_less(a->data.inner.children[i], n)) {
 				return false;
@@ -633,13 +640,13 @@ bool key_check_greater_eq(Node *a, int n) {
 		return true;
 	}
 
-	for (int i = 0; i < a->num_keys; i ++) {
-		if (a->keys[i] < n) { // key violates the greater-than-or-equal boundary
-			return false;
+	if (a->is_leaf) { // only leaf keys hold real data — inner keys are routing guideposts, not data
+		for (int i = 0; i < a->num_keys; i ++) {
+			if (a->keys[i] < n) { // key violates the greater-than-or-equal boundary
+				return false;
+			}
 		}
-	}
-
-	if (!a->is_leaf) { // recursively check all descendant leaves
+	} else { // recursively check all descendant leaves
 		for (int i = 0; i <= a->num_keys; i ++) {
 			if (!key_check_greater_eq(a->data.inner.children[i], n)) {
 				return false;
@@ -656,5 +663,6 @@ bool validate_tree(Node *root) {
 	}
 
 	int leaf_depth = -1;
+	
 	return helper_validate_tree(root, 0, &leaf_depth);
 }
