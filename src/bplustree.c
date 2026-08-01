@@ -135,9 +135,12 @@ Node *deleteNode(Node *root, int key) {
 
 	Node *node = leaf;
 	while (node && node->parent) {
-		int min_keys = node->is_leaf
-			? (MAX_KEYS + 1) / 2        // leaf: ceil(MAX_KEYS / 2)
-			: (MAX_KEYS + 1) / 2 - 1;  // inner: ceil(MAX_KEYS / 2) - 1, standard B+Tree minimum
+		int min_keys;
+		if (node->is_leaf) {
+			min_keys = (MAX_KEYS + 1) / 2;        // leaf: ceil(MAX_KEYS / 2)
+		} else {
+			min_keys = (MAX_KEYS + 1) / 2 - 1;    // inner: ceil(MAX_KEYS / 2) - 1, standard B+Tree minimum
+		}
 		if (node->num_keys >= min_keys) {
 			break; // no underflow, or node has enough keys
 		}
@@ -496,9 +499,12 @@ bool try_borrow_from_right_sibling(Node *node, Node *parent, int index) {
 } 
 
 Node *merge_with_sibling(Node *node, Node *sibling, Node *parent, int index) {
-	int merged = node->is_leaf
-		? node->num_keys + sibling->num_keys           // leaves: no separator key pulled in
-		: node->num_keys + sibling->num_keys + 1;      // inner: +1 for the separator key pulled down from parent
+	int merged;
+	if (node->is_leaf) {
+		merged = node->num_keys + sibling->num_keys;           // leaves: no separator key pulled in
+	} else {
+		merged = node->num_keys + sibling->num_keys + 1;       // inner: +1 for the separator key pulled down from parent
+	}
 
 	if (merged > MAX_KEYS) { // checking if the merge is right — combined keys would exceed node capacity
 		return NULL;
@@ -555,9 +561,13 @@ bool helper_validate_tree(Node *node, int current_depth, int *expected_leaf_dept
 		return false;
 	}
 
-	int min_keys = node->is_leaf
-		? (MAX_KEYS + 1) / 2        // leaf: ceil(MAX_KEYS / 2)
-		: (MAX_KEYS + 1) / 2 - 1;  // inner: ceil(MAX_KEYS / 2) - 1, standard B+Tree minimum
+	int min_keys;
+
+	if (node->is_leaf) {
+		min_keys = (MAX_KEYS + 1) / 2;        // leaf: ceil(MAX_KEYS / 2)
+	} else {
+		min_keys = (MAX_KEYS + 1) / 2 - 1;    // inner: ceil(MAX_KEYS / 2) - 1, standard B+Tree minimum
+	}
 
 	if (node->num_keys < min_keys && node->parent) { // bellow the minimum limit and is not the root
 		return false;
