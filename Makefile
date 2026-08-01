@@ -15,6 +15,7 @@ TESTS = test_create \
         test_delete \
         test_borrow_left \
         test_borrow_right \
+        test_merge \
         test_free
 
 BIN_DIR     = tests/bin
