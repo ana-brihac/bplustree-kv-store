@@ -546,3 +546,115 @@ Node *remove_from_parent(Node *parent, int index) {
 
 	return parent;
 }
+
+bool helper_validate_tree(Node *node, int current_depth, int *expected_leaf_depth) {
+	if (node->num_keys > MAX_KEYS) { // over the maximum limit
+		return false;
+	}
+
+	if (node->num_keys < (MAX_KEYS + 1) / 2 && node->parent) { // bellow the minimum limit and is not the root
+		return false;
+	}
+
+	for (int i = 0; i < node->num_keys - 1; i ++) {
+		if (node->keys[i] >= node->keys[i + 1]) { // the keys are not in strictly ascending order, wrong
+			return false;
+		}
+	}
+
+	if (node->is_leaf) {
+		if (*expected_leaf_depth == -1) { // this is the first leaf we encounter, record its depth
+			*expected_leaf_depth = current_depth;
+		} else {
+			if (current_depth != *expected_leaf_depth) { // tree is unbalanced, leaves are at different depths
+				return false;
+			}
+
+			if (node->data.leaf.next) {
+				if (node->keys[node->num_keys - 1] >= node->data.leaf.next->keys[0]) { // the sibling always has to have greater keys
+					return false;
+				}
+			}
+		}
+	} else {
+		for (int i = 0; i <= node->num_keys; i ++) {
+			if (!node->data.inner.children[i]) { // should not be null
+				return false;	
+			}
+		}
+
+		if (node->data.inner.children[node->num_keys + 1]) { // should be null, verifying the stale slots are cleared
+			return false;
+		}
+
+		for (int i = 0; i <= node->num_keys; i ++) { // recursively validate all children
+			if (!helper_validate_tree(node->data.inner.children[i], current_depth + 1, expected_leaf_depth)) {
+				return false;
+			}
+		}
+
+		for (int i = 0; i < node->num_keys; i ++) {
+			if (!key_check_less(node->data.inner.children[i], node->keys[i])) { // all keys in the left child's subtree must be strictly less
+				return false;
+			}
+			if (!key_check_greater_eq(node->data.inner.children[i + 1], node->keys[i])) { // all keys in the right child's subtree must be greater or equal
+				return false;
+			}
+		}
+	}
+
+	return true; // all invariants passed
+}
+
+bool key_check_less(Node *a, int n) {
+	if (!a) { // base case for empty node
+		return true;
+	}
+
+	for (int i = 0; i < a->num_keys; i ++) {
+		if (a->keys[i] >= n) { // key violates the strict less-than boundary
+			return false;
+		}
+	}
+
+	if (!a->is_leaf) { // recursively check all descendant leaves
+		for (int i = 0; i <= a->num_keys; i ++) {
+			if (!key_check_less(a->data.inner.children[i], n)) {
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+bool key_check_greater_eq(Node *a, int n) {
+	if (!a) { // base case for empty node
+		return true;
+	}
+
+	for (int i = 0; i < a->num_keys; i ++) {
+		if (a->keys[i] < n) { // key violates the greater-than-or-equal boundary
+			return false;
+		}
+	}
+
+	if (!a->is_leaf) { // recursively check all descendant leaves
+		for (int i = 0; i <= a->num_keys; i ++) {
+			if (!key_check_greater_eq(a->data.inner.children[i], n)) {
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+bool validate_tree(Node *root) {
+	if (!root) {
+		return true;
+	}
+
+	int leaf_depth = -1;
+	return helper_validate_tree(root, 0, &leaf_depth);
+}
