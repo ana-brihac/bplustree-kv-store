@@ -30,10 +30,10 @@ static void test_fifth_insert_creates_root(void) {
 	ASSERT_NOT_NULL("split_triggers_new_root", root);
 	ASSERT("split_root_is_inner",    root->is_leaf == false, "root should be inner after split");
 	ASSERT_INT_EQ("split_root_has_one_key",   1, root->num_keys);
-	ASSERT_NOT_NULL("split_left_child_exists",  root->data.inner.children[0]);
-	ASSERT_NOT_NULL("split_right_child_exists", root->data.inner.children[1]);
-	ASSERT("split_left_is_leaf",  root->data.inner.children[0]->is_leaf == true, "left child should be leaf");
-	ASSERT("split_right_is_leaf", root->data.inner.children[1]->is_leaf == true, "right child should be leaf");
+	ASSERT_NOT_NULL("split_left_child_exists",  fetch_node(root->data.inner.children[0]));
+	ASSERT_NOT_NULL("split_right_child_exists", fetch_node(root->data.inner.children[1]));
+	ASSERT("split_left_is_leaf",  fetch_node(root->data.inner.children[0])->is_leaf == true, "left child should be leaf");
+	ASSERT("split_right_is_leaf", fetch_node(root->data.inner.children[1])->is_leaf == true, "right child should be leaf");
 
 	free_test_tree(root);
 }
@@ -50,7 +50,7 @@ static void test_guidepost_placement(void) {
 	int guidepost = root->keys[0];
 
 	/* guidepost must be the smallest key in the right leaf */
-	Node *right = root->data.inner.children[1];
+	Node *right = fetch_node(root->data.inner.children[1]);
 	ASSERT_INT_EQ("split_guidepost_in_right_leaf", guidepost, right->keys[0]);
 
 	free_test_tree(root);

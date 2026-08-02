@@ -25,20 +25,20 @@ static Node *build_two_level_tree(void) {
     Node *right = create_leaf_node();
 
     /* Left leaf: keys 5, 10 */
-    left->keys[0] = 5;  left->data.leaf.values[0] = "five";
-    left->keys[1] = 10; left->data.leaf.values[1] = "ten";
+    left->keys[0] = 5;  left->data.leaf.values[0] = (int64_t)("five");
+    left->keys[1] = 10; left->data.leaf.values[1] = (int64_t)("ten");
     left->num_keys = 2;
 
     /* Right leaf: keys 15, 20 */
-    right->keys[0] = 15; right->data.leaf.values[0] = "fifteen";
-    right->keys[1] = 20; right->data.leaf.values[1] = "twenty";
+    right->keys[0] = 15; right->data.leaf.values[0] = (int64_t)("fifteen");
+    right->keys[1] = 20; right->data.leaf.values[1] = (int64_t)("twenty");
     right->num_keys = 2;
 
     /* Inner root: split key = 15, left child, right child */
     root->keys[0] = 15;
     root->num_keys = 1;
-    root->data.inner.children[0] = left;
-    root->data.inner.children[1] = right;
+    root->data.inner.children[0] = (left) ? (left)->page_id : INVALID_PAGE_ID;
+    root->data.inner.children[1] = (right) ? (right)->page_id : INVALID_PAGE_ID;
 
     return root;
 }

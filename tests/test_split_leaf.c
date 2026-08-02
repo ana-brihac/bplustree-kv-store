@@ -82,8 +82,8 @@ static void test_split_sibling_pointer(void) {
 	Node *left = build_full_leaf();
 	Node *right = split_leaf(left);
 
-	ASSERT("split_sibling_pointer_set",  left->data.leaf.next == right, "left->next should point to right");
-	ASSERT_NULL("split_sibling_next_null", right->data.leaf.next);
+	ASSERT("split_sibling_pointer_set",  left->data.leaf.next_id == right->page_id, "left->next should point to right");
+	ASSERT_NULL("split_sibling_next_null", fetch_node(right->data.leaf.next_id));
 
 	free_test_tree(left);
 	free_test_tree(right);

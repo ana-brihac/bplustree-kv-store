@@ -68,10 +68,10 @@ static void test_validate_detects_bad_min_keys(void) {
 
     parent->keys[0]                = 20;
     parent->num_keys               = 1;
-    parent->data.inner.children[0] = left;
-    parent->data.inner.children[1] = right;
-    left->parent                   = parent;
-    right->parent                  = parent;
+    parent->data.inner.children[0] = (left) ? (left)->page_id : INVALID_PAGE_ID;
+    parent->data.inner.children[1] = (right) ? (right)->page_id : INVALID_PAGE_ID;
+    left->parent_id = (parent) ? (parent)->page_id : INVALID_PAGE_ID;
+    right->parent_id = (parent) ? (parent)->page_id : INVALID_PAGE_ID;
 
     /* left has 1 key, MIN is (MAX_KEYS+1)/2 = 2, but left is a child -> should fail */
     ASSERT("validate_detects_bad_min_keys", !validate_tree(parent), "underflowed node should fail validation");

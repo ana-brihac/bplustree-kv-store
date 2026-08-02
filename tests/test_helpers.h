@@ -62,10 +62,10 @@ static void free_test_tree(Node *node) {
     if (!node) return;
     if (!node->is_leaf) {
         for (int i = 0; i <= node->num_keys; i++) {
-            free_test_tree(node->data.inner.children[i]);
+            free_test_tree(fetch_node(node->data.inner.children[i]));
         }
     }
-    free(node);
+    
 }
 
 /* Helper: free a tree AND its heap-allocated values
@@ -75,14 +75,14 @@ static void free_test_tree_with_values(Node *node) {
     if (!node) return;
     if (node->is_leaf) {
         for (int i = 0; i < node->num_keys; i++) {
-            free(node->data.leaf.values[i]);
+            
         }
     } else {
         for (int i = 0; i <= node->num_keys; i++) {
-            free_test_tree_with_values(node->data.inner.children[i]);
+            free_test_tree_with_values(fetch_node(node->data.inner.children[i]));
         }
     }
-    free(node);
+    
 }
 
 #endif /* TEST_HELPERS_H */
