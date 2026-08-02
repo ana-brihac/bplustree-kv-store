@@ -1,6 +1,6 @@
 CC     = gcc
 CFLAGS = -Wall -Wextra -g -fsanitize=address
-SRC    = src/bplustree.c
+SRC    = src/bplustree.c src/page_manager.c
 
 # ---------- test binaries ----------
 TESTS = test_create \
@@ -18,7 +18,8 @@ TESTS = test_create \
         test_borrow_right \
         test_merge \
         test_free \
-        test_range_search
+        test_range_search \
+        test_page_manager
 
 BIN_DIR     = tests/bin
 RESULT_DIR  = tests/results
