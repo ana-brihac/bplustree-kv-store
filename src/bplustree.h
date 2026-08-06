@@ -3,29 +3,37 @@
 
 #include <stdbool.h>
 
+#include <stdint.h>
+#include "page_manager.h" // for page_id_t and INVALID_PAGE_ID
+
 #define MAX_KEYS 4
 
 typedef struct Node {
-    struct Node *parent;
-	int keys[MAX_KEYS];
+	page_id_t page_id; 
+	page_id_t parent_id;
 	int num_keys;
 	bool is_leaf;
+	int keys[MAX_KEYS];
 
 	union {
         struct {
-            void *values[MAX_KEYS];   
-            struct Node *next;    
+            int64_t values[MAX_KEYS];   
+            page_id_t next_id;    
         } leaf;
         
         struct {
-            struct Node *children[MAX_KEYS + 1];
+            page_id_t children[MAX_KEYS + 1];
         } inner;
     } data;
 } Node;
 
+
 typedef struct Tree {
 	Node *root;
 } Tree;
+
+Node *fetch_node(page_id_t id);
+page_id_t allocate_node_page();
 
 Tree *createTree();
 Node *insert(Node *root, int key, void *value);
