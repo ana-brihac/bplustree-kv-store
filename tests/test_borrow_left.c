@@ -54,11 +54,11 @@ static Node *build_two_leaf_tree(
         insert_into_leaf_sorted(right, right_keys[i], (void *)right_vals[i]);
 
     parent->keys[0]                = mid;
-    parent->data.inner.children[0] = left;
-    parent->data.inner.children[1] = right;
+    parent->data.inner.children[0] = (left) ? (left)->page_id : INVALID_PAGE_ID;
+    parent->data.inner.children[1] = (right) ? (right)->page_id : INVALID_PAGE_ID;
     parent->num_keys               = 1;
-    left->parent                   = parent;
-    right->parent                  = parent;
+    left->parent_id = (parent) ? (parent)->page_id : INVALID_PAGE_ID;
+    right->parent_id = (parent) ? (parent)->page_id : INVALID_PAGE_ID;
 
     if (out_left)  *out_left  = left;
     if (out_right) *out_right = right;

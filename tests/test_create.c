@@ -29,11 +29,11 @@ static void test_create_leaf_node(void) {
     ASSERT_NOT_NULL("create_leaf_returns_non_null", leaf);
     ASSERT("create_leaf_is_leaf",      leaf->is_leaf  == true,  "is_leaf should be true");
     ASSERT_INT_EQ("create_leaf_num_keys_zero", 0, leaf->num_keys);
-    ASSERT_NULL("create_leaf_next_is_null", leaf->data.leaf.next);
+    ASSERT_NULL("create_leaf_next_is_null", fetch_node(leaf->data.leaf.next_id));
 
     int all_null = 1;
     for (int i = 0; i < MAX_KEYS; i++) {
-        if (leaf->data.leaf.values[i] != NULL) { all_null = 0; break; }
+        if (leaf->data.leaf.values[i] != 0) { all_null = 0; break; }
     }
     ASSERT("create_leaf_values_are_null", all_null, "all value slots should be NULL");
 
@@ -48,7 +48,7 @@ static void test_create_inner_node(void) {
 
     int all_null = 1;
     for (int i = 0; i <= MAX_KEYS; i++) {
-        if (inner->data.inner.children[i] != NULL) { all_null = 0; break; }
+        if (fetch_node(inner->data.inner.children[i]) != 0) { all_null = 0; break; }
     }
     ASSERT("create_inner_children_are_null", all_null, "all children slots should be NULL");
 

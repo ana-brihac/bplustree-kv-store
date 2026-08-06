@@ -23,9 +23,9 @@ static void test_search_null(void) {
 static void test_search_on_leaf(void) {
     Node *leaf = create_leaf_node();
     leaf->num_keys = 3;
-    leaf->keys[0] = 10; leaf->data.leaf.values[0] = "ten";
-    leaf->keys[1] = 20; leaf->data.leaf.values[1] = "twenty";
-    leaf->keys[2] = 30; leaf->data.leaf.values[2] = "thirty";
+    leaf->keys[0] = 10; leaf->data.leaf.values[0] = (int64_t)("ten");
+    leaf->keys[1] = 20; leaf->data.leaf.values[1] = (int64_t)("twenty");
+    leaf->keys[2] = 30; leaf->data.leaf.values[2] = (int64_t)("thirty");
 
     ASSERT_STR_EQ("search_leaf_found_first",  "ten",    search(leaf, 10));
     ASSERT_STR_EQ("search_leaf_found_middle", "twenty", search(leaf, 20));
