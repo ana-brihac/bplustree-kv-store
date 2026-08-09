@@ -18,7 +18,8 @@ TESTS = test_create \
         test_borrow_right \
         test_merge \
         test_free \
-        test_range_search
+        test_range_search \
+        test_buffer_pool
 
 BIN_DIR     = tests/bin
 RESULT_DIR  = tests/results
@@ -28,6 +29,9 @@ BINS = $(addprefix $(BIN_DIR)/, $(TESTS))
 
 # ---------- build ----------
 all: $(BINS)
+
+$(BIN_DIR)/test_buffer_pool: tests/test_buffer_pool.c src/buffer_pool.c src/page_manager.c | $(BIN_DIR)
+	$(CC) $(CFLAGS) -I. -o $@ src/buffer_pool.c src/page_manager.c $<
 
 $(BIN_DIR)/%: tests/%.c $(SRC) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -I. -o $@ $(SRC) $<
