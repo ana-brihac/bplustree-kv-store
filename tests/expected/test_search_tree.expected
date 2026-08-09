@@ -1,6 +1,6 @@
-[PASS] search_tree_left_child
-[PASS] search_tree_left_child_2
-[PASS] search_tree_right_child
-[PASS] search_tree_split_key
+[PASS] search_tree_left
+[PASS] search_tree_mid
+[PASS] search_tree_right
 [PASS] search_tree_missing_left
+[PASS] search_tree_missing_mid
 [PASS] search_tree_missing_right

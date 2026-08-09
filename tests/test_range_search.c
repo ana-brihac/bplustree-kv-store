@@ -1,96 +1,112 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <assert.h>
 #include "test_helpers.h"
-// Helper function to insert array of keys
-void insert_keys(Node **root, int keys[], char *vals[], int n) {
-	for (int i = 0; i < n; i++) {
-		*root = insert(*root, keys[i], vals[i]);
-	}
+#include <assert.h>
+#include "../src/buffer_pool.h"
+#include "../src/page_manager.h"
+#include "../src/serialize.h"
+
+void insert_keys(BufferPool *bp, page_id_t *root_id, int keys[], char *vals[], int n) {
+    for (int i = 0; i < n; i++) {
+        *root_id = insert(bp, *root_id, keys[i], vals[i]);
+    }
 }
 
 void test_basic_range() {
-	Node *root = NULL;
-	int keys[] = {10, 20, 30, 40, 50, 60, 70, 80};
-	char *vals[] = {"1", "2", "3", "4", "5", "6", "7", "8"};
-	insert_keys(&root, keys, vals, 8);
+    PageManager *pm = pm_open("test_rs1.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root = INVALID_PAGE_ID;
+    
+    int keys[] = {10, 20, 30, 40, 50, 60, 70, 80};
+    char *vals[] = {"v10", "v20", "v30", "v40", "v50", "v60", "v70", "v80"};
+    insert_keys(bp, &root, keys, vals, 8);
 
-	int res_keys[20];
-	void *res_vals[20];
-	int num_res = 0;
+    int res_keys[20];
+    void *res_vals[20];
+    int num_res = 0;
 
-	bool found = range_search(root, 25, 65, res_keys, res_vals, &num_res);
-	
-	assert(found == true);
-	assert(num_res == 4);
-	assert(res_keys[0] == 30);
-	assert(res_keys[1] == 40);
-	assert(res_keys[2] == 50);
-	assert(res_keys[3] == 60);
-	
-	printf("[PASS] test_basic_range\n");
-	free_test_tree(root);
+    range_search(bp, root, 30, 60, res_keys, res_vals, &num_res);
+    
+    ASSERT_INT_EQ("basic_range_count", 4, num_res);
+    ASSERT_INT_EQ("basic_range_k0", 30, res_keys[0]);
+    ASSERT_INT_EQ("basic_range_k1", 40, res_keys[1]);
+    ASSERT_INT_EQ("basic_range_k2", 50, res_keys[2]);
+    ASSERT_INT_EQ("basic_range_k3", 60, res_keys[3]);
+    
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_rs1.db");
 }
 
 void test_range_outside() {
-	Node *root = NULL;
-	int keys[] = {10, 20, 30};
-	char *vals[] = {"1", "2", "3"};
-	insert_keys(&root, keys, vals, 3);
+    PageManager *pm = pm_open("test_rs2.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root = INVALID_PAGE_ID;
+    
+    int keys[] = {10, 20, 30, 40, 50};
+    char *vals[] = {"v10", "v20", "v30", "v40", "v50"};
+    insert_keys(bp, &root, keys, vals, 5);
 
-	int res_keys[20];
-	void *res_vals[20];
-	int num_res = 0;
+    int res_keys[20];
+    void *res_vals[20];
+    int num_res = 0;
 
-	range_search(root, 50, 100, res_keys, res_vals, &num_res);
-	
-	assert(num_res == 0);
-	
-	printf("[PASS] test_range_outside\n");
-	free_test_tree(root);
+    range_search(bp, root, 5, 25, res_keys, res_vals, &num_res);
+    
+    ASSERT_INT_EQ("range_outside_count", 2, num_res);
+    ASSERT_INT_EQ("range_outside_k0", 10, res_keys[0]);
+    ASSERT_INT_EQ("range_outside_k1", 20, res_keys[1]);
+    
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_rs2.db");
 }
 
 void test_range_all() {
-	Node *root = NULL;
-	int keys[] = {10, 20, 30, 40, 50};
-	char *vals[] = {"1", "2", "3", "4", "5"};
-	insert_keys(&root, keys, vals, 5);
+    PageManager *pm = pm_open("test_rs3.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root = INVALID_PAGE_ID;
+    
+    int keys[] = {10, 20, 30, 40, 50};
+    char *vals[] = {"v10", "v20", "v30", "v40", "v50"};
+    insert_keys(bp, &root, keys, vals, 5);
 
-	int res_keys[20];
-	void *res_vals[20];
-	int num_res = 0;
+    int res_keys[20];
+    void *res_vals[20];
+    int num_res = 0;
 
-	range_search(root, 0, 100, res_keys, res_vals, &num_res);
-	
-	assert(num_res == 5);
-	for (int i = 0; i < 5; i++) {
-		assert(res_keys[i] == keys[i]);
-	}
-	
-	printf("[PASS] test_range_all\n");
-	free_test_tree(root);
+    range_search(bp, root, 0, 100, res_keys, res_vals, &num_res);
+    
+    ASSERT_INT_EQ("range_all_count", 5, num_res);
+    for (int i = 0; i < 5; i++) {
+        ASSERT_INT_EQ("range_all_k_match", keys[i], res_keys[i]);
+    }
+    
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_rs3.db");
 }
 
 void test_range_empty() {
-	Node *root = NULL;
-	int res_keys[20];
-	void *res_vals[20];
-	int num_res = 0;
+    PageManager *pm = pm_open("test_rs4.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root = INVALID_PAGE_ID;
+    
+    int res_keys[20];
+    void *res_vals[20];
+    int num_res = 0;
 
-	bool found = range_search(root, 10, 20, res_keys, res_vals, &num_res);
-	assert(found == false);
-	assert(num_res == 0);
-	
-	printf("[PASS] test_range_empty\n");
+    bool found = range_search(bp, root, 10, 20, res_keys, res_vals, &num_res);
+    ASSERT("range_empty_not_found", found == false, "should be false");
+    ASSERT_INT_EQ("range_empty_count", 0, num_res);
+    
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_rs4.db");
 }
 
-int main() {
-	test_basic_range();
-	test_range_outside();
-	test_range_all();
-	test_range_empty();
-	
-	printf("All range_search tests passed.\n");
-	return 0;
+int main(void) {
+    test_basic_range();
+    test_range_outside();
+    test_range_all();
+    test_range_empty();
+    return 0;
 }

@@ -1,65 +1,77 @@
-/*
- * test_insert_no_split.c
- *
- * Tests for: insert — filling a leaf to capacity without splitting
- *
- * Cases:
- *   fill_leaf_num_keys_3      - three items fit in leaf
- *   fill_leaf_still_leaf      - node remains a leaf after 3 inserts
- *   fill_leaf_keys_sorted     - all inserted keys are in sorted order
- *   fill_leaf_max_num_keys    - MAX_KEYS-1 items inserted without split
- *   fill_leaf_max_still_leaf  - node is still a leaf at MAX_KEYS-1 items
- *   fill_full_leaf_num_keys   - exactly MAX_KEYS items fit when leaf is fresh
- *   fill_full_search_mid      - search returns correct value after full fill
- */
-
 #include "test_helpers.h"
+#include "../src/buffer_pool.h"
+#include "../src/page_manager.h"
+#include "../src/serialize.h"
 
 static void test_fill_three(void) {
-    Node *root = NULL;
-    root = insert(root, 10, "v1");
-    root = insert(root, 20, "v2");
-    root = insert(root, 30, "v3");
+    PageManager *pm = pm_open("test_fill1.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    root_id = insert(bp, root_id, 10, "v1");
+    root_id = insert(bp, root_id, 20, "v2");
+    root_id = insert(bp, root_id, 30, "v3");
+
+    void *raw = bp_fetch_page(bp, root_id);
+    Node *root = deserialize_node(raw);
 
     ASSERT_INT_EQ("fill_leaf_num_keys_3", 3, root->num_keys);
     ASSERT("fill_leaf_still_leaf", root->is_leaf == true, "should still be a leaf");
-
-    /* keys sorted */
     ASSERT_INT_EQ("fill_leaf_key0", 10, root->keys[0]);
     ASSERT_INT_EQ("fill_leaf_key1", 20, root->keys[1]);
     ASSERT_INT_EQ("fill_leaf_key2", 30, root->keys[2]);
 
-    free_test_tree(root);
+    bp_unpin(bp, root_id, false);
+    free(root);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_fill1.db");
 }
 
 static void test_fill_max_minus_one(void) {
-    /* MAX_KEYS is 4, so fill 3 keys (MAX_KEYS - 1) */
-    Node *root = NULL;
-    root = insert(root, 100, "a");
-    root = insert(root, 50,  "b");
-    root = insert(root,  75, "c");
+    PageManager *pm = pm_open("test_fill2.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    root_id = insert(bp, root_id, 100, "a");
+    root_id = insert(bp, root_id, 50,  "b");
+    root_id = insert(bp, root_id,  75, "c");
+
+    void *raw = bp_fetch_page(bp, root_id);
+    Node *root = deserialize_node(raw);
 
     ASSERT_INT_EQ("fill_leaf_max_num_keys",   3, root->num_keys);
     ASSERT("fill_leaf_max_still_leaf", root->is_leaf == true, "should still be a leaf");
 
-    free_test_tree(root);
+    bp_unpin(bp, root_id, false);
+    free(root);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_fill2.db");
 }
 
 static void test_fill_and_search(void) {
-    /* Insert MAX_KEYS items directly via insert_into_leaf_sorted to bypass
-       the capacity check in insert(), then verify search works */
-    Node *leaf = create_leaf_node();
+    PageManager *pm = pm_open("test_fill3.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t leaf_id = create_leaf_node(bp);
+    void *raw = bp_fetch_page(bp, leaf_id);
+    Node *leaf = deserialize_node(raw);
+
     insert_into_leaf_sorted(leaf, 5,  "five");
     insert_into_leaf_sorted(leaf, 15, "fifteen");
     insert_into_leaf_sorted(leaf, 25, "twenty-five");
-    insert_into_leaf_sorted(leaf, 35, "thirty-five");   /* fills to MAX_KEYS=4 */
+    insert_into_leaf_sorted(leaf, 35, "thirty-five");
 
     ASSERT_INT_EQ("fill_full_leaf_num_keys", MAX_KEYS, leaf->num_keys);
-    ASSERT_STR_EQ("fill_full_search_mid", "fifteen", search(leaf, 15));
-    ASSERT_STR_EQ("fill_full_search_last", "thirty-five", search(leaf, 35));
-    ASSERT_NULL("fill_full_search_missing", search(leaf, 99));
+    serialize_node(leaf, raw);
+    bp_unpin(bp, leaf_id, true);
+    free(leaf);
 
-    free_test_tree(leaf);
+    ASSERT_STR_EQ("fill_full_search_mid", "fifteen", (char*)search(bp, leaf_id, 15));
+    ASSERT_STR_EQ("fill_full_search_last", "thirty-five", (char*)search(bp, leaf_id, 35));
+    ASSERT_NULL("fill_full_search_missing", search(bp, leaf_id, 99));
+
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_fill3.db");
 }
 
 int main(void) {

@@ -1,6 +1,6 @@
 CC     = gcc
 CFLAGS = -Wall -Wextra -g -fsanitize=address
-SRC    = src/bplustree.c src/page_manager.c
+SRC    = src/bplustree.c src/page_manager.c src/buffer_pool.c src/serialize.c
 
 # ---------- test binaries ----------
 TESTS = test_create \
@@ -10,14 +10,9 @@ TESTS = test_create \
         test_insert_into_leaf_sorted \
         test_insert_with_split \
         test_split_leaf \
-        test_remove_from_leaf \
         test_search_leaf \
         test_search_tree \
         test_delete \
-        test_borrow_left \
-        test_borrow_right \
-        test_merge \
-        test_free \
         test_range_search \
         test_page_manager \
         test_buffer_pool

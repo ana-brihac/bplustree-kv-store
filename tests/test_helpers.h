@@ -53,36 +53,4 @@
         }                                                                   \
     } while (0)
 
-/* ---------------------------------------------------------------
- * Helper: free a tree without freeing static string values
- * (use this when values point to string literals)
- * --------------------------------------------------------------- */
-static void free_test_tree(Node *node) __attribute__((unused));
-static void free_test_tree(Node *node) {
-    if (!node) return;
-    if (!node->is_leaf) {
-        for (int i = 0; i <= node->num_keys; i++) {
-            free_test_tree(fetch_node(node->data.inner.children[i]));
-        }
-    }
-    
-}
-
-/* Helper: free a tree AND its heap-allocated values
- * (use this when values were malloc'd) */
-static void free_test_tree_with_values(Node *node) __attribute__((unused));
-static void free_test_tree_with_values(Node *node) {
-    if (!node) return;
-    if (node->is_leaf) {
-        for (int i = 0; i < node->num_keys; i++) {
-            
-        }
-    } else {
-        for (int i = 0; i <= node->num_keys; i++) {
-            free_test_tree_with_values(fetch_node(node->data.inner.children[i]));
-        }
-    }
-    
-}
-
 #endif /* TEST_HELPERS_H */

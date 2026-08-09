@@ -2,44 +2,32 @@
 #include <stdlib.h>
 #include "bplustree.h"
 
-// --- Temporary In-Memory Node Cache (simulating Buffer Pool) ---
-// This allows the tests to run with page_id_t while you build your Buffer Pool.
-// When you finish your buffer pool, replace `fetch_node` with `bp_fetch_page`.
-#define MAX_NODES 100000
-static Node *node_cache[MAX_NODES];
-static page_id_t next_page_id = 1; // 0 is INVALID_PAGE_ID
+#include "serialize.h"
 
-Node *fetch_node(page_id_t id) {
-    if (id == INVALID_PAGE_ID || id >= next_page_id) {
-        return NULL;
-    }
-    return node_cache[id];
+page_id_t allocate_node_page(BufferPool *bp) {
+    if (!bp || !bp->pm) return INVALID_PAGE_ID;
+    return pm_allocate_page(bp->pm);
 }
-
-page_id_t allocate_node_page() {
-    page_id_t new_id = next_page_id++;
-    Node *n = malloc(sizeof(Node));
-    n->page_id = new_id;
-    n->parent_id = INVALID_PAGE_ID;
-    node_cache[new_id] = n;
-    return new_id;
-}
-// ---------------------------------------------------------------
 
 Tree *createTree() {
 	Tree *newTree = malloc(sizeof(Tree));
+
 	if (newTree) {
-		newTree->root = NULL;
+		newTree->root_id = INVALID_PAGE_ID;
 	}
 
 	return newTree;
 }
 
-Node *create_leaf_node() {
-	page_id_t id = allocate_node_page();
-	Node *new_node = fetch_node(id);
-	if (!new_node) return NULL;
+page_id_t create_leaf_node(BufferPool *bp) {
+	page_id_t id = allocate_node_page(bp);
+	if (id == INVALID_PAGE_ID) return INVALID_PAGE_ID;
 
+	void *raw = bp_fetch_page(bp, id);
+	if (!raw) return INVALID_PAGE_ID;
+
+	Node *new_node = malloc(sizeof(Node));
+	new_node->page_id = id;
 	new_node->is_leaf = true;
 	new_node->num_keys = 0;
 	new_node->parent_id = INVALID_PAGE_ID; // no parent yet
@@ -47,17 +35,24 @@ Node *create_leaf_node() {
 	for (int i = 0; i < MAX_KEYS; i++) {
 		new_node->data.leaf.values[i] = (int64_t)(0);
 	}
-
 	new_node->data.leaf.next_id = INVALID_PAGE_ID;
 
-	return new_node;
+	serialize_node(new_node, raw);
+	bp_unpin(bp, id, true);
+	free(new_node);
+
+	return id;
 }
 
-Node *create_inner_node() {
-	page_id_t id = allocate_node_page();
-	Node *new_node = fetch_node(id);
-	if (!new_node) return NULL;
+page_id_t create_inner_node(BufferPool *bp) {
+	page_id_t id = allocate_node_page(bp);
+	if (id == INVALID_PAGE_ID) return INVALID_PAGE_ID;
 
+	void *raw = bp_fetch_page(bp, id);
+	if (!raw) return INVALID_PAGE_ID;
+
+	Node *new_node = malloc(sizeof(Node));
+	new_node->page_id = id;
 	new_node->is_leaf = false;
 	new_node->num_keys = 0;
 	new_node->parent_id = INVALID_PAGE_ID; // no parent yet
@@ -66,183 +61,316 @@ Node *create_inner_node() {
 		new_node->data.inner.children[i] = INVALID_PAGE_ID;
 	}
 
-	return new_node;
+	serialize_node(new_node, raw);
+	bp_unpin(bp, id, true);
+	free(new_node);
+
+	return id;
 }
 
-Node *insert(Node *root, int key, void *value) {
-	// empty tree, create the first leaf
-	if (!root) {
-		root = create_leaf_node();
-		insert_into_leaf_sorted(root, key, value);
-		return root;
-	}
 
-	// traverse down to the correct leaf
-	Node *leaf = root;
-	while (!leaf->is_leaf) {
-		int i = 0;
-		while (i < leaf->num_keys && key >= leaf->keys[i]) { // finding the correct child
-			i++;
-		}
-		leaf = fetch_node(leaf->data.inner.children[i]);
-	}
 
-	// leaf has space, just insert
-	if (leaf->num_keys < MAX_KEYS) {
-		insert_into_leaf_sorted(leaf, key, value);
-		return root;
-	}
-
-	// leaf is full, split first then insert into the correct half
-	Node *new_leaf = split_leaf(leaf);
-	int guidepost = new_leaf->keys[0]; // smallest key of the right leaf goes up
-
-	if (key >= guidepost) { // new key belongs in the right (new) leaf
-		insert_into_leaf_sorted(new_leaf, key, value);
-	} else { // new key belongs in the left (original) leaf
-		insert_into_leaf_sorted(leaf, key, value);
-	}
-
-	// push guidepost key up into the parent
-	Node *new_root = insert_into_parent(fetch_node(leaf->parent_id), leaf, guidepost, new_leaf);
-
-	if (new_root) { // a new root was created (leaf was root, or cascading inner split)
-		return new_root;
-	}
-
-	return root;
-}
-
-void *search(Node *node, int key) {
-	if (!node) {
-		return NULL;
-	}
-	if (node->is_leaf) { // if leaf, going through its keys to see if our target key is there
-		for (int i = 0; i < node->num_keys; i ++) {
-			if (node->keys[i] == key) { // found the key, return the value
-				return (void *)node->data.leaf.values[i];
-			}
-		}
-
-		return NULL; // key not found in the leaf, so it doesn't exist in the tree
-	} else { // if inner, checking the children which keys are smaller than our key
-		for (int i = 0; i < node->num_keys; i ++) {
-			if (key < node->keys[i]) {
-				return search(fetch_node(node->data.inner.children[i]), key);
-			}
-		}
-
-		return search(fetch_node(node->data.inner.children[node->num_keys]), key); // recursive search if we don't find the rigth node
-		// the very last node on the far right is the safest next point
-	}
-
-	return NULL;
-}
-
-Node *deleteNode(Node *root, int key) {
-	Node *leaf = root; // traverse down to the correct leaf
-	while (leaf && !leaf->is_leaf) {
-		int i = 0;
-		while (i < leaf->num_keys && key >= leaf->keys[i]) {
-			i++;
-		}
-		leaf = fetch_node(leaf->data.inner.children[i]);
-	}
-
-	if (!leaf) return root; // empty tree
-
-	int found = -1; // verify the key actually exists in the leaf
-	for (int i = 0; i < leaf->num_keys; i++) {
-		if (leaf->keys[i] == key) { found = i; break; }
-	}
-	if (found == -1) return root; // key not in tree
-
-	remove_from_leaf(leaf, key); // remove from leaf (shifts remaining entries left, clears stale slot)
-
-	Node *node = leaf;
-	while (node && fetch_node(node->parent_id)) {
-		int min_keys;
-		if (node->is_leaf) {
-			min_keys = (MAX_KEYS + 1) / 2;        // leaf: ceil(MAX_KEYS / 2)
-		} else {
-			min_keys = (MAX_KEYS + 1) / 2 - 1;    // inner: ceil(MAX_KEYS / 2) - 1, standard B+Tree minimum
-		}
-		if (node->num_keys >= min_keys) {
-			break; // no underflow, or node has enough keys
-		}
-
-		Node *parent = fetch_node(node->parent_id); // find which index this node sits at in its parent's children array
-		int index = 0;
-		while (index <= parent->num_keys && fetch_node(parent->data.inner.children[index]) != node) {
-			index++;
-		}
-
-		if (try_borrow_from_left_sibling(node, parent, index)) { // try to borrow from a sibling
-			break; // borrow from left succeeded
-		} else if (try_borrow_from_right_sibling(node, parent, index)) {
-			break; // borrow from right succeeded
-		} else { // borrow failed, we must merge
-			if (index > 0) { // merge with left sibling
-				Node *sibling = fetch_node(parent->data.inner.children[index - 1]);
-				merge_with_sibling(sibling, node, parent, index - 1);
-			} else { // merge with right sibling
-				Node *sibling = fetch_node(parent->data.inner.children[index + 1]);
-				merge_with_sibling(node, sibling, parent, index);
-			}
-			node = parent; // handle merge cascading up
-		}
-	}
-
-	// handle root shrinking — if root ends up with 0 keys (only 1 child) after a merge
-	if (!root->is_leaf && root->num_keys == 0) {
-		Node *new_root = fetch_node(root->data.inner.children[0]);
-		new_root->parent_id = INVALID_PAGE_ID;
-		free(root);
-		return new_root;
-	}
-
-	return root;
-}
-
-void freeNode(Node *node) {
-	if (!node) { // checking if we have something to free
-		return;
-	}
-
-	if (node->is_leaf) { // free leaf values first to avoid memory leaks
-		for (int i = 0; i < node->num_keys; i++) {
-			
-			node->data.leaf.values[i] = (int64_t)(NULL);
-		}
-	} else { // if is inner, recursively free all children first
-		for (int x = 0; x <= node->num_keys; x++) {
-			freeNode(fetch_node(node->data.inner.children[x]));
-		}
-	}
-
-	free(node); // freeing the node at the end
-}
 
 void insert_into_leaf_sorted(Node *leaf, int key, void *value) {
 	int i = 0;
-
-	while (i < leaf->num_keys && key > leaf->keys[i]) {  // finding the correct index
-		i++;
-	}
-
-	if (i < leaf->num_keys && leaf->keys[i] == key) { // rejecting duplicate keys
-		return;
-	}
-
+	while (i < leaf->num_keys && key > leaf->keys[i]) i++;
+	if (i < leaf->num_keys && leaf->keys[i] == key) return;
 	for (int j = leaf->num_keys; j > i; j--) {
 		leaf->keys[j] = leaf->keys[j - 1];
-		leaf->data.leaf.values[j] = (int64_t)(leaf->data.leaf.values[j - 1]);
+		leaf->data.leaf.values[j] = leaf->data.leaf.values[j - 1];
 	}
-
-	leaf->keys[i] = key; // insert the key
-	leaf->data.leaf.values[i] = (int64_t)(value); // insert the value
+	leaf->keys[i] = key;
+	leaf->data.leaf.values[i] = (int64_t)(value);
 	leaf->num_keys++;
 }
+
+Node *split_leaf(BufferPool *bp, Node *leaf) {
+	page_id_t new_id = create_leaf_node(bp);
+	void *raw = bp_fetch_page(bp, new_id);
+	Node *new_leaf = deserialize_node(raw);
+	
+	int middle = leaf->num_keys / 2;
+	for (int i = middle; i < leaf->num_keys; i ++) {
+		new_leaf->keys[i - middle] = leaf->keys[i];
+		new_leaf->data.leaf.values[i - middle] = leaf->data.leaf.values[i];
+		leaf->data.leaf.values[i] = 0;
+		leaf->keys[i] = 0;
+		new_leaf->num_keys++;
+	}
+	leaf->num_keys -= new_leaf->num_keys;
+	new_leaf->data.leaf.next_id = leaf->data.leaf.next_id;
+	leaf->data.leaf.next_id = new_leaf->page_id;
+	
+	bp_unpin(bp, new_id, false);
+	return new_leaf;
+}
+
+Node *split_inner_node(BufferPool *bp, Node *node) {
+	page_id_t new_id = create_inner_node(bp);
+	void *raw = bp_fetch_page(bp, new_id);
+	Node *new_node = deserialize_node(raw);
+
+	int middle = node->num_keys / 2;
+	for (int i = middle + 1; i < node->num_keys; i ++) {
+		new_node->keys[i - middle - 1] = node->keys[i];
+		new_node->data.inner.children[i - middle - 1] = node->data.inner.children[i];
+		node->keys[i] = 0;
+		node->data.inner.children[i] = INVALID_PAGE_ID;
+		new_node->num_keys++;
+	}
+	new_node->data.inner.children[node->num_keys - 1 - middle] = node->data.inner.children[node->num_keys];
+	node->data.inner.children[node->num_keys] = INVALID_PAGE_ID;
+	node->num_keys -= (new_node->num_keys + 1);
+
+	for (int i = 0; i <= new_node->num_keys; i++) {
+        page_id_t child_id = new_node->data.inner.children[i];
+		if (child_id != INVALID_PAGE_ID) {
+            void *c_raw = bp_fetch_page(bp, child_id);
+            Node *c_node = deserialize_node(c_raw);
+			c_node->parent_id = new_node->page_id;
+            serialize_node(c_node, c_raw);
+            bp_unpin(bp, child_id, true);
+            free(c_node);
+		}
+	}
+
+	bp_unpin(bp, new_id, false);
+	return new_node;
+}
+
+void helper_insert_into_parent_node(Node *parent, page_id_t right_child, int key) {
+    int key_spot = find_key_in_node(parent, key);
+    for (int i = parent->num_keys; i > key_spot; i --) {
+        parent->data.inner.children[i + 1] = parent->data.inner.children[i];
+        parent->keys[i] = parent->keys[i - 1];
+    }
+    parent->keys[key_spot] = key;
+    parent->data.inner.children[key_spot + 1] = right_child;
+    parent->num_keys ++;
+}
+
+page_id_t insert_into_parent(BufferPool *bp, page_id_t parent_id, page_id_t left_child, int key, page_id_t right_child) {
+	if (parent_id == INVALID_PAGE_ID) {
+		page_id_t new_root_id = create_inner_node(bp);
+		void *raw = bp_fetch_page(bp, new_root_id);
+		Node *new_root = deserialize_node(raw);
+
+		new_root->keys[0] = key;
+		new_root->data.inner.children[0] = left_child;
+		new_root->data.inner.children[1] = right_child;
+		new_root->num_keys = 1;
+
+		if (left_child != INVALID_PAGE_ID) {
+            void *l_raw = bp_fetch_page(bp, left_child);
+            Node *l_node = deserialize_node(l_raw);
+			l_node->parent_id = new_root_id;
+            serialize_node(l_node, l_raw);
+            bp_unpin(bp, left_child, true);
+            free(l_node);
+		}
+		if (right_child != INVALID_PAGE_ID) {
+            void *r_raw = bp_fetch_page(bp, right_child);
+            Node *r_node = deserialize_node(r_raw);
+			r_node->parent_id = new_root_id;
+            serialize_node(r_node, r_raw);
+            bp_unpin(bp, right_child, true);
+            free(r_node);
+		}
+
+        serialize_node(new_root, raw);
+        bp_unpin(bp, new_root_id, true);
+        free(new_root);
+		return new_root_id;
+	}
+
+    void *raw = bp_fetch_page(bp, parent_id);
+    Node *parent = deserialize_node(raw);
+
+	if (parent->num_keys < MAX_KEYS) {
+        helper_insert_into_parent_node(parent, right_child, key);
+		
+		if (right_child != INVALID_PAGE_ID) {
+            void *r_raw = bp_fetch_page(bp, right_child);
+            Node *r_node = deserialize_node(r_raw);
+			r_node->parent_id = parent_id;
+            serialize_node(r_node, r_raw);
+            bp_unpin(bp, right_child, true);
+            free(r_node);
+		}
+
+        serialize_node(parent, raw);
+        bp_unpin(bp, parent_id, true);
+        free(parent);
+		return INVALID_PAGE_ID; 
+	} else {
+		int split_boundary = parent->keys[parent->num_keys / 2];
+		Node *new_inner = split_inner_node(bp, parent);
+        page_id_t new_inner_id = new_inner->page_id;
+
+		if (key < split_boundary) {
+            helper_insert_into_parent_node(parent, right_child, key);
+            if (right_child != INVALID_PAGE_ID) {
+                void *r_raw = bp_fetch_page(bp, right_child);
+                Node *r_node = deserialize_node(r_raw);
+                r_node->parent_id = parent_id;
+                serialize_node(r_node, r_raw);
+                bp_unpin(bp, right_child, true);
+                free(r_node);
+            }
+		} else {
+            helper_insert_into_parent_node(new_inner, right_child, key);
+            if (right_child != INVALID_PAGE_ID) {
+                void *r_raw = bp_fetch_page(bp, right_child);
+                Node *r_node = deserialize_node(r_raw);
+                r_node->parent_id = new_inner_id;
+                serialize_node(r_node, r_raw);
+                bp_unpin(bp, right_child, true);
+                free(r_node);
+            }
+		}
+
+        page_id_t parent_parent_id = parent->parent_id;
+
+        serialize_node(parent, raw);
+        bp_unpin(bp, parent_id, true);
+        free(parent);
+
+        void *new_inner_raw = bp_fetch_page(bp, new_inner_id);
+        serialize_node(new_inner, new_inner_raw);
+        bp_unpin(bp, new_inner_id, true);
+        free(new_inner);
+
+        page_id_t res = insert_into_parent(bp, parent_parent_id, parent_id, split_boundary, new_inner_id);
+        
+        if (res != INVALID_PAGE_ID) {
+            return res; 
+        }
+
+		page_id_t curr = parent_id;
+		while (curr != INVALID_PAGE_ID) {
+            void *c_raw = bp_fetch_page(bp, curr);
+            Node *c_node = deserialize_node(c_raw);
+            page_id_t p = c_node->parent_id;
+            bp_unpin(bp, curr, false);
+            free(c_node);
+            if (p == INVALID_PAGE_ID) return curr;
+            curr = p;
+		}
+		return curr;
+	}
+}
+
+page_id_t insert(BufferPool *bp, page_id_t root_id, int key, void *value) {
+	if (root_id == INVALID_PAGE_ID) {
+		root_id = create_leaf_node(bp);
+		void *raw = bp_fetch_page(bp, root_id);
+		Node *root = deserialize_node(raw);
+		insert_into_leaf_sorted(root, key, value);
+		serialize_node(root, raw);
+		bp_unpin(bp, root_id, true);
+		free(root);
+		return root_id;
+	}
+
+	page_id_t curr_id = root_id;
+	void *raw = bp_fetch_page(bp, curr_id);
+	Node *leaf = deserialize_node(raw);
+
+	while (!leaf->is_leaf) {
+		int i = 0;
+		while (i < leaf->num_keys && key >= leaf->keys[i]) i++;
+		page_id_t next_id = leaf->data.inner.children[i];
+		
+		bp_unpin(bp, curr_id, false);
+		free(leaf);
+
+		curr_id = next_id;
+		raw = bp_fetch_page(bp, curr_id);
+		leaf = deserialize_node(raw);
+	}
+
+	if (leaf->num_keys < MAX_KEYS) {
+		insert_into_leaf_sorted(leaf, key, value);
+		serialize_node(leaf, raw);
+		bp_unpin(bp, curr_id, true);
+		free(leaf);
+		return root_id;
+	}
+
+	Node *new_leaf = split_leaf(bp, leaf);
+    page_id_t new_leaf_id = new_leaf->page_id;
+	int guidepost = new_leaf->keys[0];
+
+	if (key >= guidepost) {
+		insert_into_leaf_sorted(new_leaf, key, value);
+	} else {
+		insert_into_leaf_sorted(leaf, key, value);
+	}
+
+    page_id_t parent_id = leaf->parent_id;
+
+	serialize_node(leaf, raw);
+	bp_unpin(bp, curr_id, true);
+	free(leaf);
+
+    void *new_raw = bp_fetch_page(bp, new_leaf_id);
+    serialize_node(new_leaf, new_raw);
+    bp_unpin(bp, new_leaf_id, true);
+    free(new_leaf);
+
+	page_id_t new_root = insert_into_parent(bp, parent_id, curr_id, guidepost, new_leaf_id);
+	if (new_root != INVALID_PAGE_ID) {
+		return new_root;
+	}
+
+	return root_id;
+}
+
+void *search(BufferPool *bp, page_id_t node_id, int key) {
+	if (node_id == INVALID_PAGE_ID || !bp) {
+		return NULL;
+	}
+
+	void *raw = bp_fetch_page(bp, node_id);
+	if (!raw) return NULL;
+
+	Node *node = deserialize_node(raw);
+	if (!node) {
+		bp_unpin(bp, node_id, false);
+		return NULL;
+	}
+
+	void *result = NULL;
+
+	if (node->is_leaf) { // if leaf, going through its keys to see if our target key is there
+		for (int i = 0; i < node->num_keys; i ++) {
+			if (node->keys[i] == key) { // found the key, return the value
+				result = (void *)node->data.leaf.values[i];
+				break;
+			}
+		}
+	} else { // if inner, checking the children which keys are smaller than our key
+		int child_index = node->num_keys;
+		for (int i = 0; i < node->num_keys; i ++) {
+			if (key < node->keys[i]) {
+				child_index = i;
+				break;
+			}
+		}
+		result = search(bp, node->data.inner.children[child_index], key);
+	}
+
+	bp_unpin(bp, node_id, false);
+	free(node);
+
+	return result;
+}
+
+
+
+
+
+
 
 int find_key_in_node(Node *node, int key) {
 	if (!node) {
@@ -267,77 +395,6 @@ int find_key_in_node(Node *node, int key) {
 	return l;
 }
 
-Node *insert_into_parent(Node *parent, Node *left_child, int key, Node *right_child) {
-	if (!parent) { // no parent means the node was the root — create a brand new root
-		Node *new_root = create_inner_node();
-
-		new_root->keys[0] = key;
-		
-		if (left_child) {
-			new_root->data.inner.children[0] = left_child->page_id;
-			left_child->parent_id = new_root->page_id; // keep parent pointers up to date
-		} else {
-			new_root->data.inner.children[0] = INVALID_PAGE_ID;
-		}
-
-		if (right_child) {
-			new_root->data.inner.children[1] = right_child->page_id;
-			right_child->parent_id = new_root->page_id;
-		} else {
-			new_root->data.inner.children[1] = INVALID_PAGE_ID;
-		}
-		
-		new_root->num_keys = 1;
-		return new_root;
-	}
-
-	if (parent->num_keys < MAX_KEYS) { // parent has space, just insert the guidepost
-		int key_spot = find_key_in_node(parent, key); // finding where the new key fits
-
-		for (int i = parent->num_keys; i > key_spot; i --) { // shifting keys and children right
-			fetch_node(parent->data.inner.children[i + 1] = parent->data.inner.children[i]);
-			parent->keys[i] = parent->keys[i - 1];
-		}
-
-		parent->keys[key_spot] = key;
-		
-		if (right_child) {
-			parent->data.inner.children[key_spot + 1] = right_child->page_id;
-			right_child->parent_id = parent->page_id; // keeping the parent pointer up to date
-		} else {
-			parent->data.inner.children[key_spot + 1] = INVALID_PAGE_ID;
-		}
-
-		parent->num_keys ++;
-		return NULL; // no new root was created
-	} else {
-		int split_boundary = parent->keys[parent->num_keys / 2]; // save the guidepost before it goes up
-
-		Node *new_inner = split_inner_node(parent); // split the full parent, pushing guidepost to grandparent
-
-		if (key < split_boundary) { // new key goes into the left (original) half
-			insert_into_parent(parent, left_child, key, right_child);
-		} else { // new key goes into the right (new) half
-			insert_into_parent(new_inner, left_child, key, right_child);
-		}
-
-		// walk up from parent to find the actual root after all cascading splits settle
-		Node *new_root = parent;
-		while (fetch_node(new_root->parent_id)) new_root = fetch_node(new_root->parent_id);
-		return new_root; // propagate actual root upward so insert() can update its pointer
-	}
-}
-
-Node *find_child_index(Node *inner, int key) {
-	if (!inner || inner->is_leaf) {
-		return NULL;
-	}
-
-	int idx = find_key_in_node(inner, key);
-
-	return fetch_node(inner->data.inner.children[idx]);
-}
-
 Node *remove_from_leaf(Node *leaf, int key) {
 	int k = find_key_in_node(leaf, key); // finding the index of the key to remove
 
@@ -358,399 +415,79 @@ Node *remove_from_leaf(Node *leaf, int key) {
 	return leaf;
 }
 
-Node *split_leaf(Node *leaf) {
-	Node *new_leaf = create_leaf_node(); // creating the node where the keys and values will pe placed
 
-	int middle = leaf->num_keys / 2; // finding the spliting point
 
-	for (int i = middle; i < leaf->num_keys; i ++) { //shifting the keys and values
-		new_leaf->keys[i - middle] = leaf->keys[i];
-		new_leaf->data.leaf.values[i - middle] = (int64_t)(leaf->data.leaf.values[i]);
-		leaf->data.leaf.values[i] = (int64_t)(NULL);
-		leaf->keys[i] = 0;
+ 
 
-		new_leaf->num_keys++;
+
+
+
+
+
+
+
+
+
+
+
+
+bool range_search(BufferPool *bp, page_id_t node_id, int start, int end, int result_keys[], void *result_values[], int *num_res) {
+	if (node_id == INVALID_PAGE_ID || !bp) {
+		return false;
 	}
 
-	leaf->num_keys -= new_leaf->num_keys;
+	void *raw = bp_fetch_page(bp, node_id);
+	if (!raw) return false;
 
-	new_leaf->data.leaf.next_id = leaf->data.leaf.next_id;
-
-	if (new_leaf) {
-		leaf->data.leaf.next_id = new_leaf->page_id;
-	} else {
-		leaf->data.leaf.next_id = INVALID_PAGE_ID;
-	}
-
-	return new_leaf;
-}
-
-
-Node *split_inner_node(Node *node) {
+	Node *node = deserialize_node(raw);
 	if (!node) {
-		return NULL;
-	}
-
-	int middle = node->num_keys / 2; // find the middle key
-	int guidepost = node->keys[middle]; // save it before clearing — it goes UP to the parent
-
-	Node *new_node = create_inner_node();
-
-	// we need to delete this key from the node, we are pushing it to the grandparent
-	node->keys[middle] = 0;
-	// children[middle] stays in the left node — only the key goes up, not its child
-
-	for (int i = middle + 1; i < node->num_keys; i ++) { // we are splitting the children evenly
-		fetch_node(new_node->data.inner.children[i - middle - 1] = node->data.inner.children[i]);
-		node->data.inner.children[i] = INVALID_PAGE_ID;
-		new_node->keys[i - middle - 1] = node->keys[i];
-		node->keys[i] = 0;
-		new_node->num_keys ++;
-	}
-
-	fetch_node(new_node->data.inner.children[node->num_keys - 1 - middle] = node->data.inner.children[node->num_keys]);
-	node->data.inner.children[node->num_keys] = INVALID_PAGE_ID; // clear the last child from the left node
-
-	node->num_keys = middle; // left node keeps keys[0..middle-1] and children[0..middle]
-
-	// update parent pointers for all children that moved to new_node
-	for (int i = 0; i <= new_node->num_keys; i++) {
-		if (fetch_node(new_node->data.inner.children[i])) {
-			fetch_node(new_node->data.inner.children[i])->parent_id = new_node->page_id;
-		}
-	}
-
-	insert_into_parent(fetch_node(node->parent_id), node, guidepost, new_node); // push guidepost up; sets fetch_node(new_node->parent_id) inside
-
-	return new_node;
-}
-
-bool try_borrow_from_left_sibling(Node *node, Node *parent, int index) {
-	if (index <= 0) { // no left sibling on negative positions
+		bp_unpin(bp, node_id, false);
 		return false;
 	}
 
-	Node *sibling = fetch_node(parent->data.inner.children[index - 1]); // the left sibling
-
-	if (sibling->num_keys > MAX_KEYS / 2) { // sibling has spare keys
-		if (node->is_leaf) {
-			// shift node's keys and values right to make room at slot 0
-			for (int i = node->num_keys; i > 0; i--) {
-				node->keys[i] = node->keys[i - 1];
-				node->data.leaf.values[i] = (int64_t)(node->data.leaf.values[i - 1]);
-			}
-
-			// borrow the last key and value from the left sibling
-			node->keys[0] = sibling->keys[sibling->num_keys - 1];
-			node->data.leaf.values[0] = (int64_t)(sibling->data.leaf.values[sibling->num_keys - 1]); // fixed: was [num_keys]
-
-			// clear the now-stale last slot in the sibling
-			sibling->keys[sibling->num_keys - 1] = 0;
-			sibling->data.leaf.values[sibling->num_keys - 1] = (int64_t)(NULL);
-
-			// update the guidepost in the parent (new smallest key of this node)
-			parent->keys[index - 1] = node->keys[0];
-		} else {
-			// shift node's children right to make room at slot 0
-			fetch_node(node->data.inner.children[node->num_keys + 1] = node->data.inner.children[node->num_keys]);
-
-			for (int i = node->num_keys; i > 0; i--) { // shifting the keys and children
-				node->keys[i] = node->keys[i - 1];
-				fetch_node(node->data.inner.children[i] = node->data.inner.children[i - 1]);
-			}
-
-			node->keys[0] = parent->keys[index - 1]; // pull the separator from the parent down into node
-			// bring sibling's rightmost child over as node's new leftmost child
-			fetch_node(node->data.inner.children[0] = sibling->data.inner.children[sibling->num_keys]); // fixed: was [num_keys-1]
-			if (fetch_node(node->data.inner.children[0])) {
-				fetch_node(node->data.inner.children[0])->parent_id = node->page_id; // update parent pointer of adopted child
-			}
-
-			// push sibling's last key up to replace the parent separator
-			parent->keys[index - 1] = sibling->keys[sibling->num_keys - 1];
-
-			// clear the now-stale last key and child in the sibling
-			sibling->keys[sibling->num_keys - 1] = 0;
-			sibling->data.inner.children[sibling->num_keys] = INVALID_PAGE_ID;
-		}
-
-		// adjust key counts
-		sibling->num_keys--;
-		node->num_keys++;
-
-		return true;
-	} else {
-		return false;
-	}
-}
-
-bool try_borrow_from_right_sibling(Node *node, Node *parent, int index) {
-	if (index >= parent->num_keys) { // no right sibling available
-		return false;
-	}
-
-	Node *sibling = fetch_node(parent->data.inner.children[index + 1]);
-
-	if (sibling->num_keys > MAX_KEYS / 2) { // sibling has spare keys
-		if (node->is_leaf) {
-			// borrow sibling's first key and value
-			node->keys[node->num_keys] = sibling->keys[0];
-			node->data.leaf.values[node->num_keys] = (int64_t)(sibling->data.leaf.values[0]);
-
-			// shift sibling's keys and values left
-			for (int i = 0; i < sibling->num_keys - 1; i++) {
-				sibling->keys[i] = sibling->keys[i + 1];
-				sibling->data.leaf.values[i] = (int64_t)(sibling->data.leaf.values[i + 1]);
-			}
-
-			// clear the now-stale last slot in the sibling
-			sibling->keys[sibling->num_keys - 1] = 0;
-			sibling->data.leaf.values[sibling->num_keys - 1] = (int64_t)(NULL);
-
-			// update the guidepost in the parent (new smallest key of sibling)
-			parent->keys[index] = sibling->keys[0];
-		} else {
-			// pull the parent separator down into node's last key slot
-			node->keys[node->num_keys] = parent->keys[index];
-			// bring sibling's first child over as node's new last child
-			fetch_node(node->data.inner.children[node->num_keys + 1] = sibling->data.inner.children[0]);
-			if (fetch_node(node->data.inner.children[node->num_keys + 1])) {
-				fetch_node(node->data.inner.children[node->num_keys + 1])->parent_id = node->page_id; // update adopted child's parent
-			}
-
-			// push sibling's first key up to replace the parent separator
-			parent->keys[index] = sibling->keys[0];
-
-			// shift sibling's keys left and clear stale last key
-			for (int i = 0; i < sibling->num_keys - 1; i++) {
-				sibling->keys[i] = sibling->keys[i + 1];
-			}
-			sibling->keys[sibling->num_keys - 1] = 0;
-
-			// shift sibling's children left and clear stale last child
-			for (int i = 0; i < sibling->num_keys; i++) {
-				fetch_node(sibling->data.inner.children[i] = sibling->data.inner.children[i + 1]);
-			}
-			sibling->data.inner.children[sibling->num_keys] = INVALID_PAGE_ID;
-		}
-
-		// adjust key counts
-		sibling->num_keys--;
-		node->num_keys++;
-
-		return true;
-	} else {
-		return false;
-	}
-} 
-
-Node *merge_with_sibling(Node *node, Node *sibling, Node *parent, int index) {
-	int merged;
-	if (node->is_leaf) {
-		merged = node->num_keys + sibling->num_keys;           // leaves: no separator key pulled in
-	} else {
-		merged = node->num_keys + sibling->num_keys + 1;       // inner: +1 for the separator key pulled down from parent
-	}
-
-	if (merged > MAX_KEYS) { // checking if the merge is right — combined keys would exceed node capacity
-		return NULL;
-	}
-
-	if (node->is_leaf) {
-		for (int i = 0; i < sibling->num_keys; i ++) { // we are copying the keys and values 
-			node->keys[node->num_keys + i] = sibling->keys[i];
-			node->data.leaf.values[node->num_keys + i] = (int64_t)(sibling->data.leaf.values[i]);
-		}
-
-		node->data.leaf.next_id = sibling->data.leaf.next_id; // modifying the neighbour
-		node->num_keys += sibling->num_keys; 
-	} else {
-		node->keys[node->num_keys] = parent->keys[index]; // drop the spliting key
-		parent->keys[index] = 0;
-
-		for (int i = 0; i < sibling->num_keys; i ++) { // we are copying the keys and children
-			node->keys[node->num_keys + i + 1] = sibling->keys[i];
-			fetch_node(node->data.inner.children[node->num_keys + i + 1] = sibling->data.inner.children[i]);
-
-			fetch_node(node->data.inner.children[node->num_keys + i + 1])->parent_id = node->page_id; // modifying the parent
-		}
-
-		fetch_node(node->data.inner.children[node->num_keys + sibling->num_keys + 1] = sibling->data.inner.children[sibling->num_keys]);
-		fetch_node(node->data.inner.children[node->num_keys + sibling->num_keys + 1])->parent_id = node->page_id;
-		node->num_keys += sibling->num_keys + 1;
-	}
-
-	remove_from_parent(parent, index);
-	free(sibling);
-
-	return parent;
-}
-
-Node *remove_from_parent(Node *parent, int index) {
-	for (int i = index; i < parent->num_keys - 1; i++) { // shifting the keys
-        parent->keys[i] = parent->keys[i + 1];
-    }
-
-	for (int i = index + 1; i < parent->num_keys; i++) { // shifting the children
-        fetch_node(parent->data.inner.children[i] = parent->data.inner.children[i + 1]);
-    }
-
-	parent->num_keys --;
-	parent->keys[parent->num_keys] = 0; // clearing stale key slot
-	parent->data.inner.children[parent->num_keys + 1] = INVALID_PAGE_ID; // clearing stale child pointer
-
-	return parent;
-}
-
-bool helper_validate_tree(Node *node, int current_depth, int *expected_leaf_depth) {
-	if (node->num_keys > MAX_KEYS) { // over the maximum limit
-		return false;
-	}
-
-	int min_keys;
-
-	if (node->is_leaf) {
-		min_keys = (MAX_KEYS + 1) / 2;        // leaf: ceil(MAX_KEYS / 2)
-	} else {
-		min_keys = (MAX_KEYS + 1) / 2 - 1;    // inner: ceil(MAX_KEYS / 2) - 1, standard B+Tree minimum
-	}
-
-	if (node->num_keys < min_keys && fetch_node(node->parent_id)) { // bellow the minimum limit and is not the root
-		return false;
-	}
-
-	for (int i = 0; i < node->num_keys - 1; i ++) {
-		if (node->keys[i] >= node->keys[i + 1]) { // the keys are not in strictly ascending order, wrong
-			return false;
-		}
-	}
-
-	if (node->is_leaf) {
-		if (*expected_leaf_depth == -1) { // this is the first leaf we encounter, record its depth
-			*expected_leaf_depth = current_depth;
-		} else {
-			if (current_depth != *expected_leaf_depth) { // tree is unbalanced, leaves are at different depths
-				return false;
-			}
-
-			if (fetch_node(node->data.leaf.next_id)) {
-				if (node->keys[node->num_keys - 1] >= fetch_node(node->data.leaf.next_id)->keys[0]) { // the sibling always has to have greater keys
-					return false;
-				}
-			}
-		}
-	} else {
-		for (int i = 0; i <= node->num_keys; i ++) {
-			if (!fetch_node(node->data.inner.children[i])) { // should not be null
-				return false;	
-			}
-		}
-
-		if (node->num_keys < MAX_KEYS && fetch_node(node->data.inner.children[node->num_keys + 1])) { // should be null, verifying the stale slots are cleared
-			return false;
-		}
-
-		for (int i = 0; i <= node->num_keys; i ++) { // recursively validate all children
-			if (!helper_validate_tree(fetch_node(node->data.inner.children[i]), current_depth + 1, expected_leaf_depth)) {
-				return false;
-			}
-		}
-
-		for (int i = 0; i < node->num_keys; i ++) {
-			if (!key_check_less(fetch_node(node->data.inner.children[i]), node->keys[i])) { // all keys in the left child's subtree must be strictly less
-				return false;
-			}
-			if (!key_check_greater_eq(fetch_node(node->data.inner.children[i + 1]), node->keys[i])) { // all keys in the right child's subtree must be greater or equal
-				return false;
-			}
-		}
-	}
-
-	return true; // all invariants passed
-}
-
-bool key_check_less(Node *a, int n) {
-	if (!a) { // base case for empty node
-		return true;
-	}
-
-	if (a->is_leaf) { // only leaf keys hold real data — inner keys are routing guideposts, not data
-		for (int i = 0; i < a->num_keys; i ++) {
-			if (a->keys[i] >= n) { // key violates the strict less-than boundary
-				return false;
-			}
-		}
-	} else { // recursively check all descendant leaves
-		for (int i = 0; i <= a->num_keys; i ++) {
-			if (!key_check_less(fetch_node(a->data.inner.children[i]), n)) {
-				return false;
-			}
-		}
-	}
-
-	return true;
-}
-
-bool key_check_greater_eq(Node *a, int n) {
-	if (!a) { // base case for empty node
-		return true;
-	}
-
-	if (a->is_leaf) { // only leaf keys hold real data — inner keys are routing guideposts, not data
-		for (int i = 0; i < a->num_keys; i ++) {
-			if (a->keys[i] < n) { // key violates the greater-than-or-equal boundary
-				return false;
-			}
-		}
-	} else { // recursively check all descendant leaves
-		for (int i = 0; i <= a->num_keys; i ++) {
-			if (!key_check_greater_eq(fetch_node(a->data.inner.children[i]), n)) {
-				return false;
-			}
-		}
-	}
-
-	return true;
-}
-
-bool validate_tree(Node *root) {
-	if (!root) {
-		return true;
-	}
-
-	int leaf_depth = -1;
-	
-	return helper_validate_tree(root, 0, &leaf_depth);
-}
-
-bool range_search(Node *node, int start, int end, int result_keys[], void *result_values[], int *num_res) {
-	if (!node) {
-		return false;
-	}
+	bool result = false;
 	
 	if (node->is_leaf) { // if leaf, going through its keys to see where our range starts
 		for (int i = 0; i < node->num_keys; i ++) {
 			if (node->keys[i] >= start) { // found the start key or a bigger one
-				
 				for (int j = i; j < node->num_keys; j ++) { 
 					if (node->keys[j] > end) {
-						return true;
+						result = true;
+						break;
 					}
 
 					result_keys[*num_res] = node->keys[j];
 					result_values[*num_res] = node->data.leaf.values[j];
 					(*num_res) ++; 
 				}
-				
 				break; // going out to check the siblings
 			}
 		}
 
-		Node *curr_node = fetch_node(node->data.leaf.next_id); 
-		while (curr_node != NULL) { // going right through the linked leaves
+		if (result == true) {
+			bp_unpin(bp, node_id, false);
+			free(node);
+			return true;
+		}
+
+		page_id_t curr_id = node->data.leaf.next_id;
+		bp_unpin(bp, node_id, false);
+		free(node);
+
+		while (curr_id != INVALID_PAGE_ID) { // going right through the linked leaves
+			raw = bp_fetch_page(bp, curr_id);
+			if (!raw) return true;
+			Node *curr_node = deserialize_node(raw);
+			if (!curr_node) {
+				bp_unpin(bp, curr_id, false);
+				return true;
+			}
+
+			bool stop = false;
 			for (int k = 0; k < curr_node->num_keys; k ++) {
 				if (curr_node->keys[k] > end) { 
-					return true;
+					stop = true;
+					break;
 				}
 
 				if (curr_node->keys[k] >= start) { 
@@ -759,21 +496,480 @@ bool range_search(Node *node, int start, int end, int result_keys[], void *resul
 					(*num_res) ++;
 				}
 			}
-			curr_node = fetch_node(curr_node->data.leaf.next_id);
+			
+			page_id_t next_id = curr_node->data.leaf.next_id;
+			bp_unpin(bp, curr_id, false);
+			free(curr_node);
+
+			if (stop) return true;
+			curr_id = next_id;
 		}
 		return true;
 
 	} else { // if inner, checking the children which keys are smaller than our start key
+		int child_index = node->num_keys;
 		for (int i = 0; i < node->num_keys; i ++) {
 			if (start < node->keys[i]) { 
-				return range_search(fetch_node(node->data.inner.children[i]), start, end, result_keys, result_values, num_res);
+				child_index = i;
+				break;
 			}
 		}
 
-		// recursive search if we don't find the rigth node
-		// the very last node on the far right is the safest next point
-		return range_search(fetch_node(node->data.inner.children[node->num_keys]), start, end, result_keys, result_values, num_res); 
+		page_id_t next_child = node->data.inner.children[child_index];
+		bp_unpin(bp, node_id, false);
+		free(node);
+		// recursive search
+		return range_search(bp, next_child, start, end, result_keys, result_values, num_res); 
+	}
+}
+
+page_id_t deleteNode(BufferPool *bp, page_id_t root_id, int key) {
+	if (root_id == INVALID_PAGE_ID || !bp) return INVALID_PAGE_ID;
+
+    page_id_t curr_id = root_id;
+	void *raw = bp_fetch_page(bp, curr_id);
+	Node *leaf = deserialize_node(raw);
+
+	while (!leaf->is_leaf) {
+		int i = 0;
+		while (i < leaf->num_keys && key >= leaf->keys[i]) i++;
+		page_id_t next_id = leaf->data.inner.children[i];
+
+        bp_unpin(bp, curr_id, false);
+        free(leaf);
+        
+        curr_id = next_id;
+        raw = bp_fetch_page(bp, curr_id);
+        leaf = deserialize_node(raw);
 	}
 
-	return false;
+	int found = -1;
+	for (int i = 0; i < leaf->num_keys; i++) {
+		if (leaf->keys[i] == key) { found = i; break; }
+	}
+	if (found == -1) {
+        bp_unpin(bp, curr_id, false);
+        free(leaf);
+        return root_id;
+    }
+
+	remove_from_leaf(leaf, key); 
+
+	Node *node = leaf;
+    page_id_t node_id = curr_id;
+    void *node_raw = raw;
+
+	while (node && node->parent_id != INVALID_PAGE_ID) {
+		int min_keys = node->is_leaf ? (MAX_KEYS + 1) / 2 : (MAX_KEYS + 1) / 2 - 1;
+		if (node->num_keys >= min_keys) break; 
+
+        page_id_t parent_id = node->parent_id;
+        void *parent_raw = bp_fetch_page(bp, parent_id);
+		Node *parent = deserialize_node(parent_raw);
+        
+		int index = 0;
+		while (index <= parent->num_keys && parent->data.inner.children[index] != node_id) {
+			index++;
+		}
+
+		if (try_borrow_from_left_sibling(bp, node, parent, index)) { 
+            serialize_node(parent, parent_raw);
+            bp_unpin(bp, parent_id, true);
+            free(parent);
+			break; 
+		} else if (try_borrow_from_right_sibling(bp, node, parent, index)) {
+            serialize_node(parent, parent_raw);
+            bp_unpin(bp, parent_id, true);
+            free(parent);
+			break;
+		} else {
+			if (index > 0) {
+                page_id_t sibling_id = parent->data.inner.children[index - 1];
+                void *sibling_raw = bp_fetch_page(bp, sibling_id);
+				Node *sibling = deserialize_node(sibling_raw);
+
+				merge_with_sibling(bp, sibling, node, parent, index - 1);
+                
+                serialize_node(sibling, sibling_raw);
+                bp_unpin(bp, sibling_id, true);
+                free(sibling);
+			} else {
+                page_id_t sibling_id = parent->data.inner.children[index + 1];
+                void *sibling_raw = bp_fetch_page(bp, sibling_id);
+				Node *sibling = deserialize_node(sibling_raw);
+
+				merge_with_sibling(bp, node, sibling, parent, index);
+                
+                serialize_node(sibling, sibling_raw);
+                bp_unpin(bp, sibling_id, true);
+                free(sibling);
+			}
+
+            serialize_node(node, node_raw);
+            bp_unpin(bp, node_id, true);
+            free(node);
+
+			node = parent;
+            node_id = parent_id;
+            node_raw = parent_raw;
+		}
+	}
+
+    if (node) {
+        serialize_node(node, node_raw);
+        bp_unpin(bp, node_id, true);
+        free(node);
+    }
+
+    void *root_raw = bp_fetch_page(bp, root_id);
+    Node *r = deserialize_node(root_raw);
+	if (!r->is_leaf && r->num_keys == 0) {
+		page_id_t new_root_id = r->data.inner.children[0];
+        bp_unpin(bp, root_id, false);
+        free(r);
+        
+        void *new_root_raw = bp_fetch_page(bp, new_root_id);
+		Node *new_root = deserialize_node(new_root_raw);
+		new_root->parent_id = INVALID_PAGE_ID;
+        serialize_node(new_root, new_root_raw);
+        bp_unpin(bp, new_root_id, true);
+        free(new_root);
+        
+		return new_root_id;
+	}
+    bp_unpin(bp, root_id, false);
+    free(r);
+
+	return root_id;
+}
+
+bool try_borrow_from_left_sibling(BufferPool *bp, Node *node, Node *parent, int index) {
+	if (index <= 0) return false;
+
+    page_id_t sibling_id = parent->data.inner.children[index - 1];
+    void *raw = bp_fetch_page(bp, sibling_id);
+	Node *sibling = deserialize_node(raw); 
+
+	if (sibling->num_keys > MAX_KEYS / 2) { 
+		if (node->is_leaf) {
+			for (int i = node->num_keys; i > 0; i--) {
+				node->keys[i] = node->keys[i - 1];
+				node->data.leaf.values[i] = node->data.leaf.values[i - 1];
+			}
+			node->keys[0] = sibling->keys[sibling->num_keys - 1];
+			node->data.leaf.values[0] = sibling->data.leaf.values[sibling->num_keys - 1];
+			sibling->keys[sibling->num_keys - 1] = 0;
+			sibling->data.leaf.values[sibling->num_keys - 1] = 0;
+			parent->keys[index - 1] = node->keys[0];
+		} else {
+			node->data.inner.children[node->num_keys + 1] = node->data.inner.children[node->num_keys];
+			for (int i = node->num_keys; i > 0; i--) {
+				node->keys[i] = node->keys[i - 1];
+				node->data.inner.children[i] = node->data.inner.children[i - 1];
+			}
+			node->keys[0] = parent->keys[index - 1];
+			node->data.inner.children[0] = sibling->data.inner.children[sibling->num_keys];
+			
+            page_id_t adopted_id = node->data.inner.children[0];
+            if (adopted_id != INVALID_PAGE_ID) {
+                void *a_raw = bp_fetch_page(bp, adopted_id);
+                Node *a_node = deserialize_node(a_raw);
+                a_node->parent_id = node->page_id;
+                serialize_node(a_node, a_raw);
+                bp_unpin(bp, adopted_id, true);
+                free(a_node);
+			}
+
+			parent->keys[index - 1] = sibling->keys[sibling->num_keys - 1];
+			sibling->keys[sibling->num_keys - 1] = 0;
+			sibling->data.inner.children[sibling->num_keys] = INVALID_PAGE_ID;
+		}
+
+		sibling->num_keys--;
+		node->num_keys++;
+        
+        serialize_node(sibling, raw);
+        bp_unpin(bp, sibling_id, true);
+        free(sibling);
+		return true;
+	} else {
+        bp_unpin(bp, sibling_id, false);
+        free(sibling);
+		return false;
+	}
+}
+
+bool try_borrow_from_right_sibling(BufferPool *bp, Node *node, Node *parent, int index) {
+	if (index >= parent->num_keys) return false;
+
+    page_id_t sibling_id = parent->data.inner.children[index + 1];
+    void *raw = bp_fetch_page(bp, sibling_id);
+	Node *sibling = deserialize_node(raw);
+
+	if (sibling->num_keys > MAX_KEYS / 2) { 
+		if (node->is_leaf) {
+			node->keys[node->num_keys] = sibling->keys[0];
+			node->data.leaf.values[node->num_keys] = sibling->data.leaf.values[0];
+
+			for (int i = 0; i < sibling->num_keys - 1; i++) {
+				sibling->keys[i] = sibling->keys[i + 1];
+				sibling->data.leaf.values[i] = sibling->data.leaf.values[i + 1];
+			}
+			sibling->keys[sibling->num_keys - 1] = 0;
+			sibling->data.leaf.values[sibling->num_keys - 1] = 0;
+			parent->keys[index] = sibling->keys[0];
+		} else {
+			node->keys[node->num_keys] = parent->keys[index];
+			node->data.inner.children[node->num_keys + 1] = sibling->data.inner.children[0];
+			
+            page_id_t adopted_id = node->data.inner.children[node->num_keys + 1];
+            if (adopted_id != INVALID_PAGE_ID) {
+                void *a_raw = bp_fetch_page(bp, adopted_id);
+                Node *a_node = deserialize_node(a_raw);
+                a_node->parent_id = node->page_id;
+                serialize_node(a_node, a_raw);
+                bp_unpin(bp, adopted_id, true);
+                free(a_node);
+			}
+
+			parent->keys[index] = sibling->keys[0];
+
+			for (int i = 0; i < sibling->num_keys - 1; i++) {
+				sibling->keys[i] = sibling->keys[i + 1];
+			}
+			sibling->keys[sibling->num_keys - 1] = 0;
+
+			for (int i = 0; i < sibling->num_keys; i++) {
+				sibling->data.inner.children[i] = sibling->data.inner.children[i + 1];
+			}
+			sibling->data.inner.children[sibling->num_keys] = INVALID_PAGE_ID;
+		}
+
+		sibling->num_keys--;
+		node->num_keys++;
+
+        serialize_node(sibling, raw);
+        bp_unpin(bp, sibling_id, true);
+        free(sibling);
+		return true;
+	} else {
+        bp_unpin(bp, sibling_id, false);
+        free(sibling);
+		return false;
+	}
+} 
+
+Node *merge_with_sibling(BufferPool *bp, Node *node, Node *sibling, Node *parent, int index) {
+	int merged = node->is_leaf ? node->num_keys + sibling->num_keys : node->num_keys + sibling->num_keys + 1;
+	if (merged > MAX_KEYS) return NULL;
+
+	if (node->is_leaf) {
+		for (int i = 0; i < sibling->num_keys; i ++) { 
+			node->keys[node->num_keys + i] = sibling->keys[i];
+			node->data.leaf.values[node->num_keys + i] = sibling->data.leaf.values[i];
+		}
+		node->data.leaf.next_id = sibling->data.leaf.next_id;
+		node->num_keys += sibling->num_keys; 
+	} else {
+		node->keys[node->num_keys] = parent->keys[index];
+		parent->keys[index] = 0;
+
+		for (int i = 0; i < sibling->num_keys; i ++) { 
+			node->keys[node->num_keys + i + 1] = sibling->keys[i];
+			node->data.inner.children[node->num_keys + i + 1] = sibling->data.inner.children[i];
+
+            page_id_t child_id = sibling->data.inner.children[i];
+            if (child_id != INVALID_PAGE_ID) {
+                void *c_raw = bp_fetch_page(bp, child_id);
+                Node *c_node = deserialize_node(c_raw);
+                c_node->parent_id = node->page_id;
+                serialize_node(c_node, c_raw);
+                bp_unpin(bp, child_id, true);
+                free(c_node);
+            }
+		}
+
+		node->data.inner.children[node->num_keys + sibling->num_keys + 1] = sibling->data.inner.children[sibling->num_keys];
+        page_id_t child_id = sibling->data.inner.children[sibling->num_keys];
+        if (child_id != INVALID_PAGE_ID) {
+            void *c_raw = bp_fetch_page(bp, child_id);
+            Node *c_node = deserialize_node(c_raw);
+            c_node->parent_id = node->page_id;
+            serialize_node(c_node, c_raw);
+            bp_unpin(bp, child_id, true);
+            free(c_node);
+        }
+		node->num_keys += sibling->num_keys + 1;
+	}
+
+	remove_from_parent(bp, parent, index);
+	return parent;
+}
+
+Node *remove_from_parent(BufferPool *bp, Node *parent, int index) {
+	for (int i = index; i < parent->num_keys - 1; i++) {
+        parent->keys[i] = parent->keys[i + 1];
+    }
+	for (int i = index + 1; i < parent->num_keys; i++) {
+        parent->data.inner.children[i] = parent->data.inner.children[i + 1];
+    }
+	parent->num_keys --;
+	parent->keys[parent->num_keys] = 0; 
+	parent->data.inner.children[parent->num_keys + 1] = INVALID_PAGE_ID; 
+	return parent;
+}
+
+bool helper_validate_tree(BufferPool *bp, page_id_t node_id, int current_depth, int *expected_leaf_depth) {
+    if (node_id == INVALID_PAGE_ID) return true;
+    
+    void *raw = bp_fetch_page(bp, node_id);
+    Node *node = deserialize_node(raw);
+    
+	if (node->num_keys > MAX_KEYS) {
+        bp_unpin(bp, node_id, false);
+        free(node);
+		return false;
+	}
+
+	int min_keys = node->is_leaf ? (MAX_KEYS + 1) / 2 : (MAX_KEYS + 1) / 2 - 1;
+
+	if (node->num_keys < min_keys && node->parent_id != INVALID_PAGE_ID) {
+        bp_unpin(bp, node_id, false);
+        free(node);
+		return false;
+	}
+
+	for (int i = 0; i < node->num_keys - 1; i ++) {
+		if (node->keys[i] >= node->keys[i + 1]) {
+            bp_unpin(bp, node_id, false);
+            free(node);
+			return false;
+		}
+	}
+
+	if (node->is_leaf) {
+		if (*expected_leaf_depth == -1) { 
+			*expected_leaf_depth = current_depth;
+		} else {
+			if (current_depth != *expected_leaf_depth) {
+                bp_unpin(bp, node_id, false);
+                free(node);
+				return false;
+			}
+            
+            page_id_t next_id = node->data.leaf.next_id;
+			if (next_id != INVALID_PAGE_ID) {
+                void *n_raw = bp_fetch_page(bp, next_id);
+                Node *next_node = deserialize_node(n_raw);
+				if (node->keys[node->num_keys - 1] >= next_node->keys[0]) {
+                    bp_unpin(bp, next_id, false);
+                    free(next_node);
+                    bp_unpin(bp, node_id, false);
+                    free(node);
+					return false;
+				}
+                bp_unpin(bp, next_id, false);
+                free(next_node);
+			}
+		}
+	} else {
+		for (int i = 0; i <= node->num_keys; i ++) {
+			if (node->data.inner.children[i] == INVALID_PAGE_ID) {
+                bp_unpin(bp, node_id, false);
+                free(node);
+				return false;	
+			}
+		}
+
+		if (node->num_keys < MAX_KEYS && node->data.inner.children[node->num_keys + 1] != INVALID_PAGE_ID) {
+            bp_unpin(bp, node_id, false);
+            free(node);
+			return false;
+		}
+
+		for (int i = 0; i <= node->num_keys; i ++) {
+			if (!helper_validate_tree(bp, node->data.inner.children[i], current_depth + 1, expected_leaf_depth)) {
+                bp_unpin(bp, node_id, false);
+                free(node);
+				return false;
+			}
+		}
+
+		for (int i = 0; i < node->num_keys; i ++) {
+			if (!key_check_less(bp, node->data.inner.children[i], node->keys[i])) {
+                bp_unpin(bp, node_id, false);
+                free(node);
+				return false;
+			}
+			if (!key_check_greater_eq(bp, node->data.inner.children[i + 1], node->keys[i])) {
+                bp_unpin(bp, node_id, false);
+                free(node);
+				return false;
+			}
+		}
+	}
+
+    bp_unpin(bp, node_id, false);
+    free(node);
+	return true; 
+}
+
+bool key_check_less(BufferPool *bp, page_id_t node_id, int n) {
+	if (node_id == INVALID_PAGE_ID) return true;
+    void *raw = bp_fetch_page(bp, node_id);
+    Node *a = deserialize_node(raw);
+
+	if (a->is_leaf) { 
+		for (int i = 0; i < a->num_keys; i ++) {
+			if (a->keys[i] >= n) { 
+                bp_unpin(bp, node_id, false);
+                free(a);
+				return false;
+			}
+		}
+	} else {
+		for (int i = 0; i <= a->num_keys; i ++) {
+			if (!key_check_less(bp, a->data.inner.children[i], n)) {
+                bp_unpin(bp, node_id, false);
+                free(a);
+				return false;
+			}
+		}
+	}
+    bp_unpin(bp, node_id, false);
+    free(a);
+	return true;
+}
+
+bool key_check_greater_eq(BufferPool *bp, page_id_t node_id, int n) {
+	if (node_id == INVALID_PAGE_ID) return true;
+    void *raw = bp_fetch_page(bp, node_id);
+    Node *a = deserialize_node(raw);
+
+	if (a->is_leaf) {
+		for (int i = 0; i < a->num_keys; i ++) {
+			if (a->keys[i] < n) { 
+                bp_unpin(bp, node_id, false);
+                free(a);
+				return false;
+			}
+		}
+	} else {
+		for (int i = 0; i <= a->num_keys; i ++) {
+			if (!key_check_greater_eq(bp, a->data.inner.children[i], n)) {
+                bp_unpin(bp, node_id, false);
+                free(a);
+				return false;
+			}
+		}
+	}
+    bp_unpin(bp, node_id, false);
+    free(a);
+	return true;
+}
+
+bool validate_tree(BufferPool *bp, page_id_t root_id) {
+	if (root_id == INVALID_PAGE_ID) return true;
+	int leaf_depth = -1;
+	return helper_validate_tree(bp, root_id, 0, &leaf_depth);
 }

@@ -18,98 +18,138 @@
  */
 
 #include "test_helpers.h"
+#include "../src/buffer_pool.h"
+#include "../src/page_manager.h"
+#include "../src/serialize.h"
 
 static void test_fifth_insert_creates_root(void) {
-	Node *root = NULL;
-	root = insert(root, 10, "ten");
-	root = insert(root, 20, "twenty");
-	root = insert(root, 30, "thirty");
-	root = insert(root, 40, "forty");
-	root = insert(root, 50, "fifty"); // triggers split
+    PageManager *pm = pm_open("test_split1.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    root_id = insert(bp, root_id, 10, "ten");
+    root_id = insert(bp, root_id, 20, "twenty");
+    root_id = insert(bp, root_id, 30, "thirty");
+    root_id = insert(bp, root_id, 40, "forty");
+    root_id = insert(bp, root_id, 50, "fifty");
 
-	ASSERT_NOT_NULL("split_triggers_new_root", root);
-	ASSERT("split_root_is_inner",    root->is_leaf == false, "root should be inner after split");
-	ASSERT_INT_EQ("split_root_has_one_key",   1, root->num_keys);
-	ASSERT_NOT_NULL("split_left_child_exists",  fetch_node(root->data.inner.children[0]));
-	ASSERT_NOT_NULL("split_right_child_exists", fetch_node(root->data.inner.children[1]));
-	ASSERT("split_left_is_leaf",  fetch_node(root->data.inner.children[0])->is_leaf == true, "left child should be leaf");
-	ASSERT("split_right_is_leaf", fetch_node(root->data.inner.children[1])->is_leaf == true, "right child should be leaf");
+    void *raw = bp_fetch_page(bp, root_id);
+    Node *root = deserialize_node(raw);
 
-	free_test_tree(root);
+    ASSERT("split_root_is_inner", root->is_leaf == false, "root should be inner node now");
+    ASSERT_INT_EQ("split_root_num_keys", 1, root->num_keys);
+    
+    void *l_raw = bp_fetch_page(bp, root->data.inner.children[0]);
+    Node *left = deserialize_node(l_raw);
+    void *r_raw = bp_fetch_page(bp, root->data.inner.children[1]);
+    Node *right = deserialize_node(r_raw);
+
+    ASSERT("split_left_is_leaf",  left->is_leaf == true, "left child should be leaf");
+    ASSERT("split_right_is_leaf", right->is_leaf == true, "right child should be leaf");
+
+    bp_unpin(bp, root->data.inner.children[0], false);
+    free(left);
+    bp_unpin(bp, root->data.inner.children[1], false);
+    free(right);
+    bp_unpin(bp, root_id, false);
+    free(root);
+
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_split1.db");
 }
 
 static void test_guidepost_placement(void) {
-	/* MAX_KEYS=4, keys 10,20,30,40,50 → split at middle=2, guidepost=30 */
-	Node *root = NULL;
-	root = insert(root, 10, "ten");
-	root = insert(root, 20, "twenty");
-	root = insert(root, 30, "thirty");
-	root = insert(root, 40, "forty");
-	root = insert(root, 50, "fifty");
+    PageManager *pm = pm_open("test_split2.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    root_id = insert(bp, root_id, 10, "ten");
+    root_id = insert(bp, root_id, 20, "twenty");
+    root_id = insert(bp, root_id, 30, "thirty");
+    root_id = insert(bp, root_id, 40, "forty");
+    root_id = insert(bp, root_id, 50, "fifty");
 
-	int guidepost = root->keys[0];
+    void *raw = bp_fetch_page(bp, root_id);
+    Node *root = deserialize_node(raw);
 
-	/* guidepost must be the smallest key in the right leaf */
-	Node *right = fetch_node(root->data.inner.children[1]);
-	ASSERT_INT_EQ("split_guidepost_in_right_leaf", guidepost, right->keys[0]);
+    int guidepost = root->keys[0];
 
-	free_test_tree(root);
+    void *r_raw = bp_fetch_page(bp, root->data.inner.children[1]);
+    Node *right = deserialize_node(r_raw);
+    ASSERT_INT_EQ("split_guidepost_in_right_leaf", guidepost, right->keys[0]);
+
+    bp_unpin(bp, root->data.inner.children[1], false);
+    free(right);
+    bp_unpin(bp, root_id, false);
+    free(root);
+    
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_split2.db");
 }
 
 static void test_search_after_split(void) {
-	Node *root = NULL;
-	root = insert(root, 10, "ten");
-	root = insert(root, 20, "twenty");
-	root = insert(root, 30, "thirty");
-	root = insert(root, 40, "forty");
-	root = insert(root, 50, "fifty");
+    PageManager *pm = pm_open("test_split3.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    root_id = insert(bp, root_id, 10, "ten");
+    root_id = insert(bp, root_id, 20, "twenty");
+    root_id = insert(bp, root_id, 30, "thirty");
+    root_id = insert(bp, root_id, 40, "forty");
+    root_id = insert(bp, root_id, 50, "fifty");
 
-	ASSERT_STR_EQ("split_search_10",      "ten",    search(root, 10));
-	ASSERT_STR_EQ("split_search_20",      "twenty", search(root, 20));
-	ASSERT_STR_EQ("split_search_30",      "thirty", search(root, 30));
-	ASSERT_STR_EQ("split_search_40",      "forty",  search(root, 40));
-	ASSERT_STR_EQ("split_search_50",      "fifty",  search(root, 50));
-	ASSERT_NULL(  "split_search_missing",            search(root, 99));
+    ASSERT_STR_EQ("split_search_10",      "ten",    (char*)search(bp, root_id, 10));
+    ASSERT_STR_EQ("split_search_20",      "twenty", (char*)search(bp, root_id, 20));
+    ASSERT_STR_EQ("split_search_30",      "thirty", (char*)search(bp, root_id, 30));
+    ASSERT_STR_EQ("split_search_40",      "forty",  (char*)search(bp, root_id, 40));
+    ASSERT_STR_EQ("split_search_50",      "fifty",  (char*)search(bp, root_id, 50));
+    ASSERT_NULL(  "split_search_missing",           search(bp, root_id, 99));
 
-	free_test_tree(root);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_split3.db");
 }
 
 static void test_split_reverse_order(void) {
-	/* insert in descending order — tests that split still works correctly */
-	Node *root = NULL;
-	root = insert(root, 50, "fifty");
-	root = insert(root, 40, "forty");
-	root = insert(root, 30, "thirty");
-	root = insert(root, 20, "twenty");
-	root = insert(root, 10, "ten"); // triggers split
+    PageManager *pm = pm_open("test_split4.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    root_id = insert(bp, root_id, 50, "fifty");
+    root_id = insert(bp, root_id, 40, "forty");
+    root_id = insert(bp, root_id, 30, "thirty");
+    root_id = insert(bp, root_id, 20, "twenty");
+    root_id = insert(bp, root_id, 10, "ten"); 
 
-	ASSERT_STR_EQ("split_reverse_search_10", "ten",    search(root, 10));
-	ASSERT_STR_EQ("split_reverse_search_30", "thirty", search(root, 30));
-	ASSERT_STR_EQ("split_reverse_search_50", "fifty",  search(root, 50));
+    ASSERT_STR_EQ("split_reverse_search_10", "ten",    (char*)search(bp, root_id, 10));
+    ASSERT_STR_EQ("split_reverse_search_30", "thirty", (char*)search(bp, root_id, 30));
+    ASSERT_STR_EQ("split_reverse_search_50", "fifty",  (char*)search(bp, root_id, 50));
 
-	free_test_tree(root);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_split4.db");
 }
 
 static void test_two_splits(void) {
-	/* With MAX_KEYS=4, inserting 9 keys triggers two leaf splits */
-	Node *root = NULL;
-	root = insert(root, 10, "v10");
-	root = insert(root, 20, "v20");
-	root = insert(root, 30, "v30");
-	root = insert(root, 40, "v40");
-	root = insert(root, 50, "v50"); // first split
-	root = insert(root, 60, "v60");
-	root = insert(root, 70, "v70");
-	root = insert(root, 80, "v80");
-	root = insert(root, 90, "v90"); // second split
+    PageManager *pm = pm_open("test_split5.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    root_id = insert(bp, root_id, 10, "v10");
+    root_id = insert(bp, root_id, 20, "v20");
+    root_id = insert(bp, root_id, 30, "v30");
+    root_id = insert(bp, root_id, 40, "v40");
+    root_id = insert(bp, root_id, 50, "v50"); 
+    root_id = insert(bp, root_id, 60, "v60");
+    root_id = insert(bp, root_id, 70, "v70");
+    root_id = insert(bp, root_id, 80, "v80");
+    root_id = insert(bp, root_id, 90, "v90"); 
 
-	/* all keys must still be searchable */
-	ASSERT_STR_EQ("split_two_search_10", "v10", search(root, 10));
-	ASSERT_STR_EQ("split_two_search_50", "v50", search(root, 50));
-	ASSERT_STR_EQ("split_two_search_90", "v90", search(root, 90));
-	ASSERT_NULL(  "split_two_missing",           search(root, 55));
+    ASSERT_STR_EQ("split_two_search_10", "v10", (char*)search(bp, root_id, 10));
+    ASSERT_STR_EQ("split_two_search_50", "v50", (char*)search(bp, root_id, 50));
+    ASSERT_STR_EQ("split_two_search_90", "v90", (char*)search(bp, root_id, 90));
+    ASSERT_NULL(  "split_two_missing",          search(bp, root_id, 55));
 
-	free_test_tree(root);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_split5.db");
 }
 
 int main(void) {

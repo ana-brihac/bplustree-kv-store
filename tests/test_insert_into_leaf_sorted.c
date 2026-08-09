@@ -17,86 +17,146 @@
  */
 
 #include "test_helpers.h"
+#include "../src/buffer_pool.h"
+#include "../src/page_manager.h"
+#include "../src/serialize.h"
 
 static void test_single_insert(void) {
-	Node *leaf = create_leaf_node();
-	insert_into_leaf_sorted(leaf, 42, "forty-two");
+    PageManager *pm = pm_open("test_leaf1.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t leaf_id = create_leaf_node(bp);
+    void *raw = bp_fetch_page(bp, leaf_id);
+    Node *leaf = deserialize_node(raw);
+    
+    insert_into_leaf_sorted(leaf, 42, "forty-two");
 
-	ASSERT_INT_EQ("sorted_single_key",             1,          leaf->num_keys);
-	ASSERT_INT_EQ("sorted_key_stored_correctly",   42,         leaf->keys[0]);
-	ASSERT_STR_EQ("sorted_value_stored_correctly", "forty-two", leaf->data.leaf.values[0]);
+    ASSERT_INT_EQ("sorted_single_key",             1,          leaf->num_keys);
+    ASSERT_INT_EQ("sorted_key_stored_correctly",   42,         leaf->keys[0]);
+    ASSERT_STR_EQ("sorted_value_stored_correctly", "forty-two", (char*)leaf->data.leaf.values[0]);
 
-	free_test_tree(leaf);
+    serialize_node(leaf, raw);
+    bp_unpin(bp, leaf_id, true);
+    free(leaf);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_leaf1.db");
 }
 
 static void test_out_of_order_inserts(void) {
-	Node *leaf = create_leaf_node();
-	insert_into_leaf_sorted(leaf, 30, "thirty");
-	insert_into_leaf_sorted(leaf, 10, "ten");
-	insert_into_leaf_sorted(leaf, 20, "twenty");
+    PageManager *pm = pm_open("test_leaf2.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t leaf_id = create_leaf_node(bp);
+    void *raw = bp_fetch_page(bp, leaf_id);
+    Node *leaf = deserialize_node(raw);
+    
+    insert_into_leaf_sorted(leaf, 30, "thirty");
+    insert_into_leaf_sorted(leaf, 10, "ten");
+    insert_into_leaf_sorted(leaf, 20, "twenty");
 
-	/* keys must be [10, 20, 30] */
-	ASSERT_INT_EQ("sorted_ascending_key0", 10, leaf->keys[0]);
-	ASSERT_INT_EQ("sorted_ascending_key1", 20, leaf->keys[1]);
-	ASSERT_INT_EQ("sorted_ascending_key2", 30, leaf->keys[2]);
+    ASSERT_INT_EQ("sorted_ascending_key0", 10, leaf->keys[0]);
+    ASSERT_INT_EQ("sorted_ascending_key1", 20, leaf->keys[1]);
+    ASSERT_INT_EQ("sorted_ascending_key2", 30, leaf->keys[2]);
+    ASSERT_STR_EQ("sorted_values_follow_key0", "ten",    (char*)leaf->data.leaf.values[0]);
+    ASSERT_STR_EQ("sorted_values_follow_key1", "twenty", (char*)leaf->data.leaf.values[1]);
+    ASSERT_STR_EQ("sorted_values_follow_key2", "thirty", (char*)leaf->data.leaf.values[2]);
 
-	/* values must follow their keys */
-	ASSERT_STR_EQ("sorted_values_follow_key0", "ten",    leaf->data.leaf.values[0]);
-	ASSERT_STR_EQ("sorted_values_follow_key1", "twenty", leaf->data.leaf.values[1]);
-	ASSERT_STR_EQ("sorted_values_follow_key2", "thirty", leaf->data.leaf.values[2]);
-
-	free_test_tree(leaf);
+    serialize_node(leaf, raw);
+    bp_unpin(bp, leaf_id, true);
+    free(leaf);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_leaf2.db");
 }
 
 static void test_prepend(void) {
-	Node *leaf = create_leaf_node();
-	insert_into_leaf_sorted(leaf, 20, "twenty");
-	insert_into_leaf_sorted(leaf, 30, "thirty");
-	insert_into_leaf_sorted(leaf, 5,  "five"); // should go to index 0
+    PageManager *pm = pm_open("test_leaf3.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t leaf_id = create_leaf_node(bp);
+    void *raw = bp_fetch_page(bp, leaf_id);
+    Node *leaf = deserialize_node(raw);
+    
+    insert_into_leaf_sorted(leaf, 20, "twenty");
+    insert_into_leaf_sorted(leaf, 30, "thirty");
+    insert_into_leaf_sorted(leaf, 5,  "five");
 
-	ASSERT_INT_EQ("sorted_prepend_key",  5, leaf->keys[0]);
-	ASSERT_INT_EQ("sorted_prepend_key1", 20, leaf->keys[1]);
-	ASSERT_INT_EQ("sorted_prepend_key2", 30, leaf->keys[2]);
+    ASSERT_INT_EQ("sorted_prepend_key",  5, leaf->keys[0]);
+    ASSERT_INT_EQ("sorted_prepend_key1", 20, leaf->keys[1]);
+    ASSERT_INT_EQ("sorted_prepend_key2", 30, leaf->keys[2]);
 
-	free_test_tree(leaf);
+    serialize_node(leaf, raw);
+    bp_unpin(bp, leaf_id, true);
+    free(leaf);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_leaf3.db");
 }
 
 static void test_middle_insert(void) {
-	Node *leaf = create_leaf_node();
-	insert_into_leaf_sorted(leaf, 10, "ten");
-	insert_into_leaf_sorted(leaf, 30, "thirty");
-	insert_into_leaf_sorted(leaf, 20, "twenty"); // goes between 10 and 30
+    PageManager *pm = pm_open("test_leaf4.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t leaf_id = create_leaf_node(bp);
+    void *raw = bp_fetch_page(bp, leaf_id);
+    Node *leaf = deserialize_node(raw);
+    
+    insert_into_leaf_sorted(leaf, 10, "ten");
+    insert_into_leaf_sorted(leaf, 30, "thirty");
+    insert_into_leaf_sorted(leaf, 20, "twenty");
 
-	ASSERT_INT_EQ("sorted_middle_key0", 10, leaf->keys[0]);
-	ASSERT_INT_EQ("sorted_middle_key1", 20, leaf->keys[1]);
-	ASSERT_INT_EQ("sorted_middle_key2", 30, leaf->keys[2]);
+    ASSERT_INT_EQ("sorted_middle_key0", 10, leaf->keys[0]);
+    ASSERT_INT_EQ("sorted_middle_key1", 20, leaf->keys[1]);
+    ASSERT_INT_EQ("sorted_middle_key2", 30, leaf->keys[2]);
 
-	free_test_tree(leaf);
+    serialize_node(leaf, raw);
+    bp_unpin(bp, leaf_id, true);
+    free(leaf);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_leaf4.db");
 }
 
 static void test_duplicate_rejected(void) {
-	Node *leaf = create_leaf_node();
-	insert_into_leaf_sorted(leaf, 10, "original");
-	insert_into_leaf_sorted(leaf, 10, "duplicate");
+    PageManager *pm = pm_open("test_leaf5.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t leaf_id = create_leaf_node(bp);
+    void *raw = bp_fetch_page(bp, leaf_id);
+    Node *leaf = deserialize_node(raw);
+    
+    insert_into_leaf_sorted(leaf, 10, "original");
+    insert_into_leaf_sorted(leaf, 10, "duplicate");
 
-	ASSERT_INT_EQ("sorted_duplicate_rejected",   1,          leaf->num_keys);
-	ASSERT_STR_EQ("sorted_duplicate_value_kept", "original", leaf->data.leaf.values[0]);
+    ASSERT_INT_EQ("sorted_duplicate_rejected",   1,          leaf->num_keys);
+    ASSERT_STR_EQ("sorted_duplicate_value_kept", "original", (char*)leaf->data.leaf.values[0]);
 
-	free_test_tree(leaf);
+    serialize_node(leaf, raw);
+    bp_unpin(bp, leaf_id, true);
+    free(leaf);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_leaf5.db");
 }
 
 static void test_fill_to_max(void) {
-	Node *leaf = create_leaf_node();
-	insert_into_leaf_sorted(leaf, 1,  "one");
-	insert_into_leaf_sorted(leaf, 2,  "two");
-	insert_into_leaf_sorted(leaf, 3,  "three");
-	insert_into_leaf_sorted(leaf, 4,  "four");
+    PageManager *pm = pm_open("test_leaf6.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t leaf_id = create_leaf_node(bp);
+    void *raw = bp_fetch_page(bp, leaf_id);
+    Node *leaf = deserialize_node(raw);
+    
+    insert_into_leaf_sorted(leaf, 1,  "one");
+    insert_into_leaf_sorted(leaf, 2,  "two");
+    insert_into_leaf_sorted(leaf, 3,  "three");
+    insert_into_leaf_sorted(leaf, 4,  "four");
 
-	ASSERT_INT_EQ("sorted_four_keys_full",   MAX_KEYS, leaf->num_keys);
-	ASSERT_INT_EQ("sorted_four_keys_key3",   4,        leaf->keys[3]);
-	ASSERT_STR_EQ("sorted_four_keys_value3", "four",   leaf->data.leaf.values[3]);
+    ASSERT_INT_EQ("sorted_four_keys_full",   4, leaf->num_keys);
+    ASSERT_INT_EQ("sorted_four_keys_key3",   4,        leaf->keys[3]);
+    ASSERT_STR_EQ("sorted_four_keys_value3", "four",   (char*)leaf->data.leaf.values[3]);
 
-	free_test_tree(leaf);
+    serialize_node(leaf, raw);
+    bp_unpin(bp, leaf_id, true);
+    free(leaf);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_leaf6.db");
 }
 
 int main(void) {

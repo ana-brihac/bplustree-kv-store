@@ -1,76 +1,174 @@
-/*
- * test_delete.c
- *
- * Tests for: deleteNode
- *
- * Note: deleteNode calls free() on the removed value, so all values
- * here are heap-allocated with strdup().
- *
- * Cases:
- *   delete_existing_decrements_num_keys  - num_keys goes from 3 to 2
- *   delete_existing_key_gone             - searching the deleted key returns NULL
- *   delete_existing_others_remain        - the other keys are still searchable
- *   delete_shifts_keys_left              - the key array shifts correctly after delete
- *   delete_missing_key_unchanged         - deleting a key not in tree changes nothing
- *   delete_from_null                     - deleteNode on NULL root returns NULL
- */
-
 #include "test_helpers.h"
-
-/* Build a 3-key leaf with heap-allocated values */
-static Node *build_leaf_heap(void) {
-    Node *leaf = create_leaf_node();
-    insert_into_leaf_sorted(leaf, 10, strdup("ten"));
-    insert_into_leaf_sorted(leaf, 20, strdup("twenty"));
-    insert_into_leaf_sorted(leaf, 30, strdup("thirty"));
-    return leaf;
-}
+#include "../src/buffer_pool.h"
+#include "../src/page_manager.h"
+#include "../src/serialize.h"
 
 static void test_delete_existing(void) {
-    Node *root = build_leaf_heap();
+    PageManager *pm = pm_open("test_delete1.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    
+    root_id = insert(bp, root_id, 10, "ten");
+    root_id = insert(bp, root_id, 20, "twenty");
+    root_id = insert(bp, root_id, 30, "thirty");
 
-    root = deleteNode(root, 20);
+    root_id = deleteNode(bp, root_id, 20);
+
+    void *raw = bp_fetch_page(bp, root_id);
+    Node *root = deserialize_node(raw);
 
     ASSERT_INT_EQ("delete_existing_decrements_num_keys", 2, root->num_keys);
-    ASSERT_NULL("delete_existing_key_gone", search(root, 20));
-    ASSERT_STR_EQ("delete_existing_others_remain_10", "ten",    search(root, 10));
-    ASSERT_STR_EQ("delete_existing_others_remain_30", "thirty", search(root, 30));
-
-    /* After deleting key 20 (index 1), keys should be [10, 30] */
+    ASSERT_NULL("delete_existing_key_gone", search(bp, root_id, 20));
+    ASSERT_STR_EQ("delete_existing_others_remain_10", "ten",    (char*)search(bp, root_id, 10));
+    ASSERT_STR_EQ("delete_existing_others_remain_30", "thirty", (char*)search(bp, root_id, 30));
     ASSERT_INT_EQ("delete_shifts_keys_key0", 10, root->keys[0]);
     ASSERT_INT_EQ("delete_shifts_keys_key1", 30, root->keys[1]);
 
-    free_test_tree_with_values(root);
+    bp_unpin(bp, root_id, false);
+    free(root);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_delete1.db");
 }
 
 static void test_delete_first_key(void) {
-    Node *root = build_leaf_heap();
+    PageManager *pm = pm_open("test_delete2.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    
+    root_id = insert(bp, root_id, 10, "ten");
+    root_id = insert(bp, root_id, 20, "twenty");
+    root_id = insert(bp, root_id, 30, "thirty");
 
-    root = deleteNode(root, 10);
+    root_id = deleteNode(bp, root_id, 10);
+
+    void *raw = bp_fetch_page(bp, root_id);
+    Node *root = deserialize_node(raw);
 
     ASSERT_INT_EQ("delete_first_decrements_num_keys", 2, root->num_keys);
-    ASSERT_NULL("delete_first_key_gone", search(root, 10));
-
-    /* Remaining keys should shift: [20, 30] */
+    ASSERT_NULL("delete_first_key_gone", search(bp, root_id, 10));
     ASSERT_INT_EQ("delete_first_shifts_key0", 20, root->keys[0]);
     ASSERT_INT_EQ("delete_first_shifts_key1", 30, root->keys[1]);
 
-    free_test_tree_with_values(root);
+    bp_unpin(bp, root_id, false);
+    free(root);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_delete2.db");
 }
 
 static void test_delete_missing(void) {
-    Node *root = build_leaf_heap();
+    PageManager *pm = pm_open("test_delete3.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    
+    root_id = insert(bp, root_id, 10, "ten");
+    root_id = insert(bp, root_id, 20, "twenty");
+    root_id = insert(bp, root_id, 30, "thirty");
 
-    root = deleteNode(root, 999); /* key doesn't exist */
+    root_id = deleteNode(bp, root_id, 999);
+
+    void *raw = bp_fetch_page(bp, root_id);
+    Node *root = deserialize_node(raw);
 
     ASSERT_INT_EQ("delete_missing_key_unchanged", 3, root->num_keys);
 
-    free_test_tree_with_values(root);
+    bp_unpin(bp, root_id, false);
+    free(root);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_delete3.db");
 }
 
 static void test_delete_null(void) {
-    Node *result = deleteNode(NULL, 10);
-    ASSERT_NULL("delete_from_null", result);
+    PageManager *pm = pm_open("test_delete4.db");
+    BufferPool *bp = bp_create(pm);
+    
+    page_id_t result = deleteNode(bp, INVALID_PAGE_ID, 10);
+    ASSERT("delete_from_null", result == INVALID_PAGE_ID, "should return INVALID_PAGE_ID");
+    
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_delete4.db");
+}
+
+static void test_delete_borrow_right(void) {
+    PageManager *pm = pm_open("test_delete5.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    
+    root_id = insert(bp, root_id, 10, "ten");
+    root_id = insert(bp, root_id, 20, "twenty");
+    root_id = insert(bp, root_id, 30, "thirty");
+    root_id = insert(bp, root_id, 40, "forty");
+    root_id = insert(bp, root_id, 50, "fifty");
+
+    root_id = deleteNode(bp, root_id, 10);
+
+    ASSERT_NULL("borrow_right_search_10_gone", (char*)search(bp, root_id, 10));
+    ASSERT_STR_EQ("borrow_right_search_20", "twenty", (char*)search(bp, root_id, 20));
+    ASSERT_STR_EQ("borrow_right_search_30", "thirty", (char*)search(bp, root_id, 30));
+    ASSERT_STR_EQ("borrow_right_search_40", "forty", (char*)search(bp, root_id, 40));
+    ASSERT_STR_EQ("borrow_right_search_50", "fifty", (char*)search(bp, root_id, 50));
+
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_delete5.db");
+}
+
+static void test_delete_borrow_left(void) {
+    PageManager *pm = pm_open("test_delete6.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    
+    root_id = insert(bp, root_id, 10, "ten");
+    root_id = insert(bp, root_id, 20, "twenty");
+    root_id = insert(bp, root_id, 30, "thirty");
+    root_id = insert(bp, root_id, 40, "forty");
+    root_id = insert(bp, root_id, 50, "fifty");
+
+    root_id = deleteNode(bp, root_id, 50);
+
+    ASSERT_NULL("borrow_left_search_50_gone", (char*)search(bp, root_id, 50));
+    ASSERT_STR_EQ("borrow_left_search_10", "ten", (char*)search(bp, root_id, 10));
+    ASSERT_STR_EQ("borrow_left_search_20", "twenty", (char*)search(bp, root_id, 20));
+    ASSERT_STR_EQ("borrow_left_search_30", "thirty", (char*)search(bp, root_id, 30));
+    ASSERT_STR_EQ("borrow_left_search_40", "forty", (char*)search(bp, root_id, 40));
+
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_delete6.db");
+}
+
+static void test_delete_merge(void) {
+    PageManager *pm = pm_open("test_delete7.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    
+    root_id = insert(bp, root_id, 10, "ten");
+    root_id = insert(bp, root_id, 20, "twenty");
+    root_id = insert(bp, root_id, 30, "thirty");
+    root_id = insert(bp, root_id, 40, "forty");
+    root_id = insert(bp, root_id, 50, "fifty");
+    
+    root_id = deleteNode(bp, root_id, 50); // borrow left
+    root_id = deleteNode(bp, root_id, 40); // triggers merge!
+
+    ASSERT_NULL("merge_search_40_gone", (char*)search(bp, root_id, 40));
+    ASSERT_NULL("merge_search_50_gone", (char*)search(bp, root_id, 50));
+    ASSERT_STR_EQ("merge_search_10", "ten", (char*)search(bp, root_id, 10));
+    ASSERT_STR_EQ("merge_search_20", "twenty", (char*)search(bp, root_id, 20));
+    ASSERT_STR_EQ("merge_search_30", "thirty", (char*)search(bp, root_id, 30));
+
+    void *raw = bp_fetch_page(bp, root_id);
+    Node *root = deserialize_node(raw);
+    ASSERT("merge_root_is_leaf", root->is_leaf == true, "tree should have shrunk to a single leaf");
+
+    bp_unpin(bp, root_id, false);
+    free(root);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_delete7.db");
 }
 
 int main(void) {
@@ -78,5 +176,8 @@ int main(void) {
     test_delete_first_key();
     test_delete_missing();
     test_delete_null();
+    test_delete_borrow_right();
+    test_delete_borrow_left();
+    test_delete_merge();
     return 0;
 }

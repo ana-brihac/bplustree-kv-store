@@ -1,4 +1,4 @@
-[PASS] insert_empty_returns_non_null
+[PASS] insert_empty_returns_valid_id
 [PASS] insert_empty_is_leaf
 [PASS] insert_empty_num_keys_one
 [PASS] insert_empty_key_stored

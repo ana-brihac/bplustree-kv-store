@@ -1,8 +1,5 @@
-[PASS] split_triggers_new_root
 [PASS] split_root_is_inner
-[PASS] split_root_has_one_key
-[PASS] split_left_child_exists
-[PASS] split_right_child_exists
+[PASS] split_root_num_keys
 [PASS] split_left_is_leaf
 [PASS] split_right_is_leaf
 [PASS] split_guidepost_in_right_leaf

@@ -16,20 +16,29 @@
  */
 
 #include "test_helpers.h"
+#include "../src/buffer_pool.h"
+#include "../src/page_manager.h"
+#include "../src/serialize.h"
 
 static void test_createTree(void) {
     Tree *t = createTree();
     ASSERT_NOT_NULL("create_tree_returns_non_null", t);
-    ASSERT_NULL("create_tree_root_is_null", t->root);
+    ASSERT("create_tree_root_is_null", t->root_id == INVALID_PAGE_ID, "root should be INVALID_PAGE_ID");
     free(t);
 }
 
 static void test_create_leaf_node(void) {
-    Node *leaf = create_leaf_node();
-    ASSERT_NOT_NULL("create_leaf_returns_non_null", leaf);
+    PageManager *pm = pm_open("test_create_leaf.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t leaf_id = create_leaf_node(bp);
+    ASSERT_NOT_NULL("create_leaf_returns_valid_id", leaf_id != INVALID_PAGE_ID ? (void*)1 : NULL);
+    
+    void *raw = bp_fetch_page(bp, leaf_id);
+    Node *leaf = deserialize_node(raw);
+    
     ASSERT("create_leaf_is_leaf",      leaf->is_leaf  == true,  "is_leaf should be true");
     ASSERT_INT_EQ("create_leaf_num_keys_zero", 0, leaf->num_keys);
-    ASSERT_NULL("create_leaf_next_is_null", fetch_node(leaf->data.leaf.next_id));
+    ASSERT("create_leaf_next_is_null", leaf->data.leaf.next_id == INVALID_PAGE_ID, "next_id should be INVALID_PAGE_ID");
 
     int all_null = 1;
     for (int i = 0; i < MAX_KEYS; i++) {
@@ -37,22 +46,36 @@ static void test_create_leaf_node(void) {
     }
     ASSERT("create_leaf_values_are_null", all_null, "all value slots should be NULL");
 
+    bp_unpin(bp, leaf_id, false);
     free(leaf);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_create_leaf.db");
 }
 
 static void test_create_inner_node(void) {
-    Node *inner = create_inner_node();
-    ASSERT_NOT_NULL("create_inner_returns_non_null", inner);
+    PageManager *pm = pm_open("test_create_inner.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t inner_id = create_inner_node(bp);
+    ASSERT_NOT_NULL("create_inner_returns_valid_id", inner_id != INVALID_PAGE_ID ? (void*)1 : NULL);
+
+    void *raw = bp_fetch_page(bp, inner_id);
+    Node *inner = deserialize_node(raw);
+
     ASSERT("create_inner_not_leaf",    inner->is_leaf == false, "is_leaf should be false");
     ASSERT_INT_EQ("create_inner_num_keys_zero", 0, inner->num_keys);
 
     int all_null = 1;
     for (int i = 0; i <= MAX_KEYS; i++) {
-        if (fetch_node(inner->data.inner.children[i]) != 0) { all_null = 0; break; }
+        if (inner->data.inner.children[i] != INVALID_PAGE_ID) { all_null = 0; break; }
     }
     ASSERT("create_inner_children_are_null", all_null, "all children slots should be NULL");
 
+    bp_unpin(bp, inner_id, false);
     free(inner);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_create_inner.db");
 }
 
 int main(void) {

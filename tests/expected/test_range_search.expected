@@ -1,5 +1,16 @@
-[PASS] test_basic_range
-[PASS] test_range_outside
-[PASS] test_range_all
-[PASS] test_range_empty
-All range_search tests passed.
+[PASS] basic_range_count
+[PASS] basic_range_k0
+[PASS] basic_range_k1
+[PASS] basic_range_k2
+[PASS] basic_range_k3
+[PASS] range_outside_count
+[PASS] range_outside_k0
+[PASS] range_outside_k1
+[PASS] range_all_count
+[PASS] range_all_k_match
+[PASS] range_all_k_match
+[PASS] range_all_k_match
+[PASS] range_all_k_match
+[PASS] range_all_k_match
+[PASS] range_empty_not_found
+[PASS] range_empty_count

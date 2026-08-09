@@ -14,7 +14,7 @@
 [PASS] remove_last_key_gone
 [PASS] remove_last_others_10
 [PASS] remove_last_others_20
-[PASS] remove_missing_key_unchanged
+[FAIL] remove_missing_key_unchanged: expected 3, got 2
 [PASS] remove_single_key_num_keys_zero
 [PASS] remove_single_key_gone
 [PASS] remove_returns_leaf

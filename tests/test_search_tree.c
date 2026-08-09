@@ -1,63 +1,51 @@
-/*
- * test_search_tree.c
- *
- * Tests for: search — across a manually constructed multi-level tree
- *
- * Tree layout:
- *
- *          [ 15 ]           ← inner root (1 key)
- *         /       \
- *    [5, 10]    [15, 20]    ← leaf nodes
- *
- * Cases:
- *   search_tree_left_child      - key < split key → found in left leaf
- *   search_tree_right_child     - key >= split key → found in right leaf
- *   search_tree_split_key       - the split key itself lives in the right leaf
- *   search_tree_missing_left    - missing key that would route to left → NULL
- *   search_tree_missing_right   - missing key that would route to right → NULL
- */
-
 #include "test_helpers.h"
+#include "../src/buffer_pool.h"
+#include "../src/page_manager.h"
+#include "../src/serialize.h"
 
-static Node *build_two_level_tree(void) {
-    Node *root  = create_inner_node();
-    Node *left  = create_leaf_node();
-    Node *right = create_leaf_node();
+static void test_search_tree_existing(void) {
+    PageManager *pm = pm_open("test_st1.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
+    
+    // Insert enough keys to cause a split (assuming MAX_KEYS = 4)
+    root_id = insert(bp, root_id, 10, "ten");
+    root_id = insert(bp, root_id, 20, "twenty");
+    root_id = insert(bp, root_id, 30, "thirty");
+    root_id = insert(bp, root_id, 40, "forty");
+    root_id = insert(bp, root_id, 50, "fifty");
 
-    /* Left leaf: keys 5, 10 */
-    left->keys[0] = 5;  left->data.leaf.values[0] = (int64_t)("five");
-    left->keys[1] = 10; left->data.leaf.values[1] = (int64_t)("ten");
-    left->num_keys = 2;
+    ASSERT_STR_EQ("search_tree_left",  "ten",   (char*)search(bp, root_id, 10));
+    ASSERT_STR_EQ("search_tree_mid",   "thirty",(char*)search(bp, root_id, 30));
+    ASSERT_STR_EQ("search_tree_right", "fifty", (char*)search(bp, root_id, 50));
 
-    /* Right leaf: keys 15, 20 */
-    right->keys[0] = 15; right->data.leaf.values[0] = (int64_t)("fifteen");
-    right->keys[1] = 20; right->data.leaf.values[1] = (int64_t)("twenty");
-    right->num_keys = 2;
-
-    /* Inner root: split key = 15, left child, right child */
-    root->keys[0] = 15;
-    root->num_keys = 1;
-    root->data.inner.children[0] = (left) ? (left)->page_id : INVALID_PAGE_ID;
-    root->data.inner.children[1] = (right) ? (right)->page_id : INVALID_PAGE_ID;
-
-    return root;
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_st1.db");
 }
 
-static void test_search_tree(void) {
-    Node *root = build_two_level_tree();
+static void test_search_tree_missing(void) {
+    PageManager *pm = pm_open("test_st2.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root_id = INVALID_PAGE_ID;
 
-    ASSERT_STR_EQ("search_tree_left_child",    "five",    search(root, 5));
-    ASSERT_STR_EQ("search_tree_left_child_2",  "ten",     search(root, 10));
-    ASSERT_STR_EQ("search_tree_right_child",   "twenty",  search(root, 20));
-    ASSERT_STR_EQ("search_tree_split_key",     "fifteen", search(root, 15));
+    root_id = insert(bp, root_id, 10, "ten");
+    root_id = insert(bp, root_id, 20, "twenty");
+    root_id = insert(bp, root_id, 30, "thirty");
+    root_id = insert(bp, root_id, 40, "forty");
+    root_id = insert(bp, root_id, 50, "fifty");
 
-    ASSERT_NULL("search_tree_missing_left",  search(root, 7));
-    ASSERT_NULL("search_tree_missing_right", search(root, 99));
+    ASSERT_NULL("search_tree_missing_left",  search(bp, root_id, 5));
+    ASSERT_NULL("search_tree_missing_mid",   search(bp, root_id, 25));
+    ASSERT_NULL("search_tree_missing_right", search(bp, root_id, 99));
 
-    free_test_tree(root);
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_st2.db");
 }
 
 int main(void) {
-    test_search_tree();
+    test_search_tree_existing();
+    test_search_tree_missing();
     return 0;
 }
