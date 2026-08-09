@@ -43,6 +43,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "../src/buffer_pool.h"
 #include "../src/page_manager.h"
@@ -117,6 +118,14 @@ static void test_bp_create(void) {
         if (bp->page_table[i] != NULL) { all_null = 0; break; }
     }
     ASSERT("bp_create_table_null", all_null, "all page_table buckets should be NULL");
+
+    /* all 64 frame.data buffers must be non-NULL */
+    int all_data_non_null = 1;
+    for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
+        if (bp->frames[i].data == NULL) { all_data_non_null = 0; break; }
+    }
+    ASSERT("bp_create_frame_data_not_null", all_data_non_null,
+           "every frame.data buffer should be non-NULL after create");
 
     bp_destroy(bp);
     cleanup_tmp_pm(pm, path);
@@ -329,6 +338,48 @@ static void test_bp_eviction(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Test: eviction flush failure returns NULL
+ *
+ * Strategy: fill the pool with BUFFER_POOL_SIZE pages, unpin the first
+ * one and mark it dirty.  Then close the underlying file descriptor to
+ * force pm_write_page to fail when eviction tries to flush it.
+ * bp_fetch_page must return NULL and leave the dirty frame intact.
+ * --------------------------------------------------------------- */
+static void test_bp_fetch_evict_flush_failure(void) {
+    char path[64];
+    PageManager *pm = open_tmp_pm(path);
+
+    /* allocate BUFFER_POOL_SIZE + 1 pages on disk */
+    page_id_t pids[BUFFER_POOL_SIZE + 1];
+    for (int i = 0; i <= BUFFER_POOL_SIZE; i++) {
+        pids[i] = pm_allocate_page(pm);
+    }
+
+    BufferPool *bp = bp_create(pm);
+
+    /* fill every frame, leave them all pinned except frame 0 */
+    for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
+        bp_fetch_page(bp, pids[i]);
+    }
+
+    /* unpin frame 0 and mark it dirty — sole eviction candidate */
+    bp_unpin(bp, pids[0], true);
+
+    /* break the fd so pm_write_page fails during the eviction flush */
+    close(pm->fd);
+    pm->fd = -1;
+
+    void *result = bp_fetch_page(bp, pids[BUFFER_POOL_SIZE]);
+    ASSERT_NULL("bp_fetch_evict_flush_failure_returns_null", result);
+
+    /* restore a valid fd so bp_destroy does not crash */
+    pm->fd = open(path, O_RDWR);
+
+    bp_destroy(bp);
+    cleanup_tmp_pm(pm, path);
+}
+
+/* ---------------------------------------------------------------
  * Entry point
  * --------------------------------------------------------------- */
 int main(void) {
@@ -339,5 +390,6 @@ int main(void) {
     test_bp_flush();
     test_bp_destroy();
     test_bp_eviction();
+    test_bp_fetch_evict_flush_failure();
     return 0;
 }

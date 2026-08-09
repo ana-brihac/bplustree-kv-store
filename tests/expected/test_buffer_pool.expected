@@ -5,6 +5,7 @@
 [PASS] bp_create_frames_pin_zero
 [PASS] bp_create_frames_not_dirty
 [PASS] bp_create_table_null
+[PASS] bp_create_frame_data_not_null
 [PASS] hash_function_range
 [PASS] hash_insert_lookup_basic
 [PASS] hash_insert_update_existing
@@ -32,3 +33,4 @@
 [PASS] bp_flush_all_no_crash
 [PASS] bp_destroy_null_no_crash
 [PASS] bp_eviction_flushes_and_loads
+[PASS] bp_fetch_evict_flush_failure_returns_null
