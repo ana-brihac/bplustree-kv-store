@@ -36,6 +36,7 @@
  *   bp_flush_page_dirty               - flush of dirty page writes and clears flag
  *   bp_flush_all_no_crash             - bp_flush_all on a live pool does not crash
  *   bp_destroy_null_no_crash          - bp_destroy(NULL) does not crash
+ *   bp_eviction_flushes_and_loads     - evicting a dirty frame flushes it before loading new page
  */
 
 #include <stdio.h>
@@ -299,6 +300,35 @@ static void test_bp_destroy(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Test: eviction flushes dirty frame before loading new page
+ * --------------------------------------------------------------- */
+static void test_bp_eviction(void) {
+    char path[64];
+    PageManager *pm = open_tmp_pm(path);
+    BufferPool *bp = bp_create(pm);
+
+    /* allocate one more page than the pool can hold */
+    page_id_t pids[BUFFER_POOL_SIZE + 1];
+    for (int i = 0; i <= BUFFER_POOL_SIZE; i++) {
+        pids[i] = pm_allocate_page(pm);
+    }
+
+    /* fill every frame and immediately unpin; mark the first one dirty */
+    for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
+        bp_fetch_page(bp, pids[i]);
+        bp_unpin(bp, pids[i], i == 0); /* only mark frame 0 dirty */
+    }
+
+    /* fetching the extra page must evict an unpinned frame;
+       if that frame is dirty it must be flushed first */
+    void *data = bp_fetch_page(bp, pids[BUFFER_POOL_SIZE]);
+    ASSERT_NOT_NULL("bp_eviction_flushes_and_loads", data);
+
+    bp_destroy(bp);
+    cleanup_tmp_pm(pm, path);
+}
+
+/* ---------------------------------------------------------------
  * Entry point
  * --------------------------------------------------------------- */
 int main(void) {
@@ -308,5 +338,6 @@ int main(void) {
     test_bp_pin_unpin();
     test_bp_flush();
     test_bp_destroy();
+    test_bp_eviction();
     return 0;
 }

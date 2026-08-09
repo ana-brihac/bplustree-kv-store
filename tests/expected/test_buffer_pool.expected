@@ -31,3 +31,4 @@
 [PASS] bp_flush_page_clears_dirty
 [PASS] bp_flush_all_no_crash
 [PASS] bp_destroy_null_no_crash
+[PASS] bp_eviction_flushes_and_loads

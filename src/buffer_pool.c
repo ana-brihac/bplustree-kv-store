@@ -19,6 +19,15 @@ BufferPool *bp_create(PageManager *pm) {
 	// allocating memory for the frames and initiating them
 	for (int i = 0; i < BUFFER_POOL_SIZE; i ++) {
 		new_bp->frames[i].data = malloc(PAGE_SIZE);
+
+		if (!new_bp->frames[i].data) { // failed to allocate data for the frame, clean up
+			for (int j = 0; j < i; j++) {
+				free(new_bp->frames[j].data);
+			}
+			free(new_bp);
+			return NULL;
+		}
+
 		new_bp->frames[i].page_id = INVALID_PAGE_ID;
 		new_bp->frames[i].last_time_used = 0;
 		new_bp->frames[i].pin_count = 0;
@@ -88,7 +97,9 @@ void *bp_fetch_page(BufferPool *bp, page_id_t page_id) {
 
 		// we did not found an empty frame, we need to evict the last used
 		if (bp->frames[k].is_dirty) {
-			bp_flush_page(bp, bp->frames[k].page_id);
+			if (!bp_flush_page(bp, bp->frames[k].page_id)) { // can't evict if we can't flush
+				return NULL;
+			}
 		}
 
 		hash_remove(bp, bp->frames[k].page_id);
