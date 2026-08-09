@@ -31,6 +31,24 @@ typedef struct {
 BufferPool *bp_create(PageManager *pm);
 void bp_destroy(BufferPool *bp); // flushes all dirty frames, frees memory
 
+/*
+ * Raw-bytes contract for Frame.data / bp_fetch_page:
+ *
+ *   - Frame.data is a raw PAGE_SIZE byte buffer.  The buffer pool never
+ *     calls serialize_node / deserialize_node internally.
+ *
+ *   - After bp_fetch_page returns, the caller must call
+ *     deserialize_node(data) to obtain a usable Node*.  That Node* is
+ *     heap-allocated and the CALLER is responsible for freeing it.
+ *
+ *   - Before calling bp_unpin(bp, page_id, true  [mark_dirty=true]), the
+ *     caller must write the updated Node back into the frame buffer with
+ *     serialize_node(node, data).
+ *
+ *   - The returned void* is only valid while pin_count > 0 for that page.
+ *     Once unpinned the frame may be evicted at any time and the pointer
+ *     becomes stale.
+ */
 void *bp_fetch_page(BufferPool *bp, page_id_t page_id); // returns pointer to in-memory frame data
 void bp_pin(BufferPool *bp, page_id_t page_id);
 void bp_unpin(BufferPool *bp, page_id_t page_id, bool mark_dirty);
