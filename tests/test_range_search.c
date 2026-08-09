@@ -103,10 +103,42 @@ void test_range_empty() {
     remove("test_rs4.db");
 }
 
+void test_range_cross_leaf_boundary(void) {
+    /*
+     * 6 insertions with MAX_KEYS=4 forces a leaf split:
+     *   root = [30], left = [10,20], right = [30,40,50,60]
+     * A range [20,40] straddles both leaves and must follow the next_id link.
+     */
+    PageManager *pm = pm_open("test_rs5.db");
+    BufferPool *bp = bp_create(pm);
+    page_id_t root = INVALID_PAGE_ID;
+
+    int keys[] = {10, 20, 30, 40, 50, 60};
+    char *vals[] = {"v10", "v20", "v30", "v40", "v50", "v60"};
+    insert_keys(bp, &root, keys, vals, 6);
+
+    int res_keys[20];
+    void *res_vals[20];
+    int num_res = 0;
+
+    range_search(bp, root, 20, 40, res_keys, res_vals, &num_res);
+
+    /* Expect keys 20 (left leaf) and 30, 40 (right leaf) */
+    ASSERT_INT_EQ("cross_boundary_count", 3, num_res);
+    ASSERT_INT_EQ("cross_boundary_k0", 20, res_keys[0]);
+    ASSERT_INT_EQ("cross_boundary_k1", 30, res_keys[1]);
+    ASSERT_INT_EQ("cross_boundary_k2", 40, res_keys[2]);
+
+    bp_destroy(bp);
+    pm_close(pm);
+    remove("test_rs5.db");
+}
+
 int main(void) {
     test_basic_range();
     test_range_outside();
     test_range_all();
     test_range_empty();
+    test_range_cross_leaf_boundary();
     return 0;
 }

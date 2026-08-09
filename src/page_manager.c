@@ -58,7 +58,12 @@ page_id_t pm_allocate_page(PageManager *pm) {
 	
 	char buffer[PAGE_SIZE] = {0}; // creating a blank page_size buffer
 
-	write(pm->fd, buffer, PAGE_SIZE); // write the clean buffer to disk
+	ssize_t bytes_written = write(pm->fd, buffer, PAGE_SIZE);
+
+	if (bytes_written != PAGE_SIZE) {
+		/* Disk full or I/O error: do not increment num_pages, the page is invalid. */
+		return INVALID_PAGE_ID;
+	}
 
 	pm->num_pages ++; // increment the num of pages
 
@@ -72,7 +77,7 @@ bool pm_read_page(PageManager *pm, page_id_t page_id, void *buffer) {
 
 	off_t offset = page_id * PAGE_SIZE; // calculate the offset for the page location
 
-	int seek_ret = lseek(pm->fd, offset, SEEK_SET); // seek that offset
+	off_t seek_ret = lseek(pm->fd, offset, SEEK_SET); // seek that offset
 
 	if (seek_ret == (off_t)-1) {
 		return false;

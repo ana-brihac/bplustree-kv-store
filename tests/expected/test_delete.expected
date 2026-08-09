@@ -26,3 +26,10 @@
 [PASS] merge_search_20
 [PASS] merge_search_30
 [PASS] merge_root_is_leaf
+[PASS] cascade_root_is_leaf
+[PASS] cascade_root_num_keys
+[PASS] cascade_search_10
+[PASS] cascade_search_20
+[PASS] cascade_search_50
+[PASS] cascade_search_30_gone
+[PASS] cascade_search_40_gone
