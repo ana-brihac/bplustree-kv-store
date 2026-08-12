@@ -1,4 +1,4 @@
-# bplustree-kv-store
+# B+Tree Storage Engine
 
 A persistent, embedded key-value store written in C, implementing an on-disk B+Tree with page-based storage, an LRU buffer pool, and a Write-Ahead Log for crash recovery — inspired by the design of embedded engines like LMDB and SQLite's storage layer.
 
