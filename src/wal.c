@@ -1,9 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "wal.h"
 
-WAL *wal_open(char *filename) {
+WAL *wal_open(const char *filename) {
 	int fd = open(filename, O_APPEND | O_RDWR | O_CREAT, 0666);
 
 	if (fd < 0) {
@@ -35,14 +38,14 @@ bool wal_append(WAL *wal, page_id_t page_id, void *page_data) {
 		return false;
 	}
 
-	WALRecord *new_rec;
+	WALRecord new_rec;
 
-	new_rec->page_id = page_id;
-	new_rec->seq_num = new_rec->next_seq_num;
+	new_rec.page_id = page_id;
+	new_rec.seq_num = wal->next_seq_num;
 	wal->next_seq_num ++;
-	memcpy(new_rec->page_data, page_data, PAGE_SIZE);
+	memcpy(new_rec.page_data, page_data, PAGE_SIZE);
 
-	ssize_t bytes_written = write(wal->fd, &record, sizeof(WALRecord));
+	ssize_t bytes_written = write(wal->fd, &new_rec, sizeof(WALRecord));
 	
 	if (bytes_written != sizeof(WALRecord)) {
 		return false;  // write failed or was incomplete

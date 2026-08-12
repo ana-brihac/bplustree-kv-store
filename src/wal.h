@@ -17,7 +17,7 @@ typedef struct {
     char page_data[PAGE_SIZE];   // the serialized node content
 } WALRecord;
 
-WAL *wal_open(char *filename); // open or create the WAL file
+WAL *wal_open(const char *filename); // open or create the WAL file
 bool wal_append(WAL *wal, page_id_t page_id, void *page_data);
 bool wal_fsync(WAL *wal);
 void wal_close(WAL *wal);
