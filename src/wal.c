@@ -17,7 +17,14 @@ WAL *wal_open(char *filename) {
 		return NULL;
 	}
 
-	new_wal->next_seq_num = 0;
+	off_t file_size = lseek(fd, 0, SEEK_END);
+
+	if (file_size) {
+		new_wal->next_seq_num = file_size / sizeof(WALRecord);
+	} else {
+		new_wal->next_seq_num = 0;
+	}
+
 	new_wal->fd = fd;
 
 	return new_wal;
