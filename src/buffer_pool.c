@@ -148,8 +148,12 @@ void bp_unpin(BufferPool *bp, page_id_t page_id, bool mark_dirty) {
 	if (frame_idx != -1) { // checking if we found the right page
 		if (mark_dirty) { // if the caller modified it, write to WAL
 			wal_append(bp->wal, page_id, bp->frames[frame_idx].data);
-			// wal_fsync(bp->wal);
 			bp->frames[frame_idx].is_dirty = true;
+			
+			// trigger automatic checkpoint if WAL grows too large
+			if (bp->wal && bp->wal->next_seq_num >= 100) {
+			    wal_checkpoint(bp);
+			}
 		}
 
 		if (bp->frames[frame_idx].pin_count > 0) { // decrementing the pin count

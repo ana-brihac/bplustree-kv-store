@@ -142,3 +142,30 @@ void wal_clear(WAL *wal) {
 	ftruncate(wal->fd, 0);
 	wal->next_seq_num = 0;
 }
+
+bool wal_checkpoint(BufferPool *bp) {
+    if (!bp || !bp->wal) {
+        return false;
+    }
+
+    // flush all dirty pages from the buffer pool to the main DB file
+    bp_flush_all(bp);
+    
+    // ensure the OS has written all those flushed pages to disk before we clear the WAL!
+    fsync(bp->pm->fd);
+
+    // truncate the WAL file to 0 byte
+    if (ftruncate(bp->wal->fd, 0) < 0) {
+        return false;
+    }
+
+    // reset the file offset back to the beginning
+    if (lseek(bp->wal->fd, 0, SEEK_SET) < 0) {
+        return false;
+    }
+
+    // reset the sequence counter
+    bp->wal->next_seq_num = 0;
+
+    return true;
+}

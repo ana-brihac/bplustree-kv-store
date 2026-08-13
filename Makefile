@@ -16,7 +16,8 @@ TESTS = test_recovery test_create \
         test_range_search \
         test_page_manager \
         test_buffer_pool \
-        test_wal
+        test_wal \
+        test_checkpoint
 
 BIN_DIR     = tests/bin
 RESULT_DIR  = tests/results
@@ -32,8 +33,8 @@ all: $(BINS)
 $(BIN_DIR)/test_buffer_pool: tests/test_buffer_pool.c src/buffer_pool.c src/page_manager.c src/wal.c | $(BIN_DIR)
 	$(CC) $(CFLAGS) -I. -o $@ src/buffer_pool.c src/page_manager.c src/wal.c $<
 
-$(BIN_DIR)/test_wal: tests/test_wal.c src/wal.c src/page_manager.c | $(BIN_DIR)
-	$(CC) $(CFLAGS) -I. -o $@ src/wal.c src/page_manager.c $<
+$(BIN_DIR)/test_wal: tests/test_wal.c src/wal.c src/page_manager.c src/buffer_pool.c | $(BIN_DIR)
+	$(CC) $(CFLAGS) -I. -o $@ src/wal.c src/page_manager.c src/buffer_pool.c $<
 
 $(BIN_DIR)/%: tests/%.c $(SRC) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -I. -o $@ $(SRC) $<

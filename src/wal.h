@@ -30,4 +30,6 @@ void wal_close(WAL *wal);
 bool wal_recover(WAL *wal, BufferPool *bp);
 void wal_clear(WAL *wal);
 
+bool wal_checkpoint(BufferPool *bp);
+
 #endif
