@@ -3,7 +3,7 @@ CFLAGS = -Wall -Wextra -g -fsanitize=address
 SRC    = src/bplustree.c src/page_manager.c src/buffer_pool.c src/serialize.c src/wal.c
 
 # ---------- test binaries ----------
-TESTS = test_create \
+TESTS = test_recovery test_create \
         test_insert_basic \
         test_insert_no_split \
         test_validate \
@@ -23,6 +23,8 @@ RESULT_DIR  = tests/results
 EXPECT_DIR  = tests/expected
 
 BINS = $(addprefix $(BIN_DIR)/, $(TESTS))
+WORKLOADS = run_workload verify_workload
+BINS += $(addprefix $(BIN_DIR)/, $(WORKLOADS))
 
 # ---------- build ----------
 all: $(BINS)
