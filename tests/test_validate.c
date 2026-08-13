@@ -8,7 +8,7 @@
 
 static void test_validate_empty_tree(void) {
     PageManager *pm = pm_open("test_val1.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     
     ASSERT("validate_empty_tree", validate_tree(bp, INVALID_PAGE_ID), "INVALID_PAGE_ID root should be valid");
     
@@ -19,7 +19,7 @@ static void test_validate_empty_tree(void) {
 
 static void test_validate_single_leaf(void) {
     PageManager *pm = pm_open("test_val2.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root = INVALID_PAGE_ID;
     
     root = insert(bp, root, 10, "ten");
@@ -32,7 +32,7 @@ static void test_validate_single_leaf(void) {
 
 static void test_validate_after_inserts(void) {
     PageManager *pm = pm_open("test_val3.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root = INVALID_PAGE_ID;
     
     for (int i = 1; i <= 15; i++) {
@@ -47,7 +47,7 @@ static void test_validate_after_inserts(void) {
 
 static void test_validate_after_deletes(void) {
     PageManager *pm = pm_open("test_val4.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root = INVALID_PAGE_ID;
     
     for (int i = 1; i <= 15; i++) {
@@ -97,7 +97,7 @@ static bool ref_contains(Ref *r, int key) {
 
 static int run_property_test(int n_ops, unsigned int seed) {
     PageManager *pm = pm_open("test_val_stress.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root = INVALID_PAGE_ID;
     
     Ref  *ref  = calloc(1, sizeof(Ref));

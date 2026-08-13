@@ -24,7 +24,7 @@
 
 static void test_fifth_insert_creates_root(void) {
     PageManager *pm = pm_open("test_split1.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(bp, root_id, 10, "ten");
     root_id = insert(bp, root_id, 20, "twenty");
@@ -60,7 +60,7 @@ static void test_fifth_insert_creates_root(void) {
 
 static void test_guidepost_placement(void) {
     PageManager *pm = pm_open("test_split2.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(bp, root_id, 10, "ten");
     root_id = insert(bp, root_id, 20, "twenty");
@@ -89,7 +89,7 @@ static void test_guidepost_placement(void) {
 
 static void test_search_after_split(void) {
     PageManager *pm = pm_open("test_split3.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(bp, root_id, 10, "ten");
     root_id = insert(bp, root_id, 20, "twenty");
@@ -111,7 +111,7 @@ static void test_search_after_split(void) {
 
 static void test_split_reverse_order(void) {
     PageManager *pm = pm_open("test_split4.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(bp, root_id, 50, "fifty");
     root_id = insert(bp, root_id, 40, "forty");
@@ -130,7 +130,7 @@ static void test_split_reverse_order(void) {
 
 static void test_two_splits(void) {
     PageManager *pm = pm_open("test_split5.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(bp, root_id, 10, "v10");
     root_id = insert(bp, root_id, 20, "v20");

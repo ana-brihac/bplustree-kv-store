@@ -98,7 +98,7 @@ static void test_bp_create(void) {
     PageManager *pm = open_tmp_pm(path);
     ASSERT_NOT_NULL("pm_open_succeeds", pm);
 
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
 
     ASSERT_NOT_NULL("bp_create_returns_non_null", bp);
     ASSERT_INT_EQ("bp_create_global_time_zero", 0, bp->global_time);
@@ -137,7 +137,7 @@ static void test_bp_create(void) {
 static void test_hash_operations(void) {
     char path[64];
     PageManager *pm = open_tmp_pm(path);
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
 
     /* hash_function must always stay in [0, HASH_TABLE_SIZE) */
     int in_range = 1;
@@ -184,7 +184,7 @@ static void test_bp_fetch_page(void) {
 
     char path[64];
     PageManager *pm = open_tmp_pm(path);
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
 
     /* allocate a real page and write a sentinel pattern */
     page_id_t pid0 = pm_allocate_page(pm);
@@ -222,7 +222,7 @@ static void test_bp_pin_unpin(void) {
 
     char path[64];
     PageManager *pm = open_tmp_pm(path);
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
 
     page_id_t pid = pm_allocate_page(pm);
     bp_fetch_page(bp, pid);
@@ -263,7 +263,7 @@ static void test_bp_flush(void) {
 
     char path[64];
     PageManager *pm = open_tmp_pm(path);
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
 
     /* flush of non-resident page */
     ASSERT("bp_flush_page_missing",
@@ -314,7 +314,7 @@ static void test_bp_destroy(void) {
 static void test_bp_eviction(void) {
     char path[64];
     PageManager *pm = open_tmp_pm(path);
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
 
     /* allocate one more page than the pool can hold */
     page_id_t pids[BUFFER_POOL_SIZE + 1];
@@ -355,7 +355,7 @@ static void test_bp_fetch_evict_flush_failure(void) {
         pids[i] = pm_allocate_page(pm);
     }
 
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
 
     /* fill every frame, leave them all pinned except frame 0 */
     for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
@@ -382,6 +382,10 @@ static void test_bp_fetch_evict_flush_failure(void) {
 /* ---------------------------------------------------------------
  * Entry point
  * --------------------------------------------------------------- */
+#include "sys/stat.h"
+
+#include "test_bp_unpin_wal.h"
+
 int main(void) {
     test_bp_create();
     test_hash_operations();
@@ -391,5 +395,6 @@ int main(void) {
     test_bp_destroy();
     test_bp_eviction();
     test_bp_fetch_evict_flush_failure();
+    test_bp_unpin_wal_logging();
     return 0;
 }

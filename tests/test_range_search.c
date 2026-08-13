@@ -12,7 +12,7 @@ void insert_keys(BufferPool *bp, page_id_t *root_id, int keys[], char *vals[], i
 
 void test_basic_range() {
     PageManager *pm = pm_open("test_rs1.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root = INVALID_PAGE_ID;
     
     int keys[] = {10, 20, 30, 40, 50, 60, 70, 80};
@@ -38,7 +38,7 @@ void test_basic_range() {
 
 void test_range_outside() {
     PageManager *pm = pm_open("test_rs2.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root = INVALID_PAGE_ID;
     
     int keys[] = {10, 20, 30, 40, 50};
@@ -62,7 +62,7 @@ void test_range_outside() {
 
 void test_range_all() {
     PageManager *pm = pm_open("test_rs3.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root = INVALID_PAGE_ID;
     
     int keys[] = {10, 20, 30, 40, 50};
@@ -87,7 +87,7 @@ void test_range_all() {
 
 void test_range_empty() {
     PageManager *pm = pm_open("test_rs4.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root = INVALID_PAGE_ID;
     
     int res_keys[20];
@@ -110,7 +110,7 @@ void test_range_cross_leaf_boundary(void) {
      * A range [20,40] straddles both leaves and must follow the next_id link.
      */
     PageManager *pm = pm_open("test_rs5.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root = INVALID_PAGE_ID;
 
     int keys[] = {10, 20, 30, 40, 50, 60};

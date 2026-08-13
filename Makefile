@@ -1,6 +1,6 @@
 CC     = gcc
 CFLAGS = -Wall -Wextra -g -fsanitize=address
-SRC    = src/bplustree.c src/page_manager.c src/buffer_pool.c src/serialize.c
+SRC    = src/bplustree.c src/page_manager.c src/buffer_pool.c src/serialize.c src/wal.c
 
 # ---------- test binaries ----------
 TESTS = test_create \
@@ -27,8 +27,8 @@ BINS = $(addprefix $(BIN_DIR)/, $(TESTS))
 # ---------- build ----------
 all: $(BINS)
 
-$(BIN_DIR)/test_buffer_pool: tests/test_buffer_pool.c src/buffer_pool.c src/page_manager.c | $(BIN_DIR)
-	$(CC) $(CFLAGS) -I. -o $@ src/buffer_pool.c src/page_manager.c $<
+$(BIN_DIR)/test_buffer_pool: tests/test_buffer_pool.c src/buffer_pool.c src/page_manager.c src/wal.c | $(BIN_DIR)
+	$(CC) $(CFLAGS) -I. -o $@ src/buffer_pool.c src/page_manager.c src/wal.c $<
 
 $(BIN_DIR)/test_wal: tests/test_wal.c src/wal.c src/page_manager.c | $(BIN_DIR)
 	$(CC) $(CFLAGS) -I. -o $@ src/wal.c src/page_manager.c $<

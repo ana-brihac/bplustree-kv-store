@@ -34,3 +34,7 @@
 [PASS] bp_destroy_null_no_crash
 [PASS] bp_eviction_flushes_and_loads
 [PASS] bp_fetch_evict_flush_failure_returns_null
+[PASS] bp_unpin_clean_no_wal
+[PASS] bp_unpin_dirty_wal
+[PASS] bp_unpin_wal_page_id
+[PASS] bp_unpin_wal_data_match

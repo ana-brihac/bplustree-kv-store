@@ -5,7 +5,7 @@
 
 static void test_search_tree_existing(void) {
     PageManager *pm = pm_open("test_st1.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     
     // Insert enough keys to cause a split (assuming MAX_KEYS = 4)
@@ -26,7 +26,7 @@ static void test_search_tree_existing(void) {
 
 static void test_search_tree_missing(void) {
     PageManager *pm = pm_open("test_st2.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
 
     root_id = insert(bp, root_id, 10, "ten");

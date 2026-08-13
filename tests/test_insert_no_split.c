@@ -5,7 +5,7 @@
 
 static void test_fill_three(void) {
     PageManager *pm = pm_open("test_fill1.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(bp, root_id, 10, "v1");
     root_id = insert(bp, root_id, 20, "v2");
@@ -29,7 +29,7 @@ static void test_fill_three(void) {
 
 static void test_fill_max_minus_one(void) {
     PageManager *pm = pm_open("test_fill2.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(bp, root_id, 100, "a");
     root_id = insert(bp, root_id, 50,  "b");
@@ -50,7 +50,7 @@ static void test_fill_max_minus_one(void) {
 
 static void test_fill_and_search(void) {
     PageManager *pm = pm_open("test_fill3.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);

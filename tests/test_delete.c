@@ -5,7 +5,7 @@
 
 static void test_delete_existing(void) {
     PageManager *pm = pm_open("test_delete1.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     
     root_id = insert(bp, root_id, 10, "ten");
@@ -33,7 +33,7 @@ static void test_delete_existing(void) {
 
 static void test_delete_first_key(void) {
     PageManager *pm = pm_open("test_delete2.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     
     root_id = insert(bp, root_id, 10, "ten");
@@ -59,7 +59,7 @@ static void test_delete_first_key(void) {
 
 static void test_delete_missing(void) {
     PageManager *pm = pm_open("test_delete3.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     
     root_id = insert(bp, root_id, 10, "ten");
@@ -82,7 +82,7 @@ static void test_delete_missing(void) {
 
 static void test_delete_null(void) {
     PageManager *pm = pm_open("test_delete4.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     
     page_id_t result = deleteNode(bp, INVALID_PAGE_ID, 10);
     ASSERT("delete_from_null", result == INVALID_PAGE_ID, "should return INVALID_PAGE_ID");
@@ -94,7 +94,7 @@ static void test_delete_null(void) {
 
 static void test_delete_borrow_right(void) {
     PageManager *pm = pm_open("test_delete5.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     
     root_id = insert(bp, root_id, 10, "ten");
@@ -118,7 +118,7 @@ static void test_delete_borrow_right(void) {
 
 static void test_delete_borrow_left(void) {
     PageManager *pm = pm_open("test_delete6.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     
     root_id = insert(bp, root_id, 10, "ten");
@@ -142,7 +142,7 @@ static void test_delete_borrow_left(void) {
 
 static void test_delete_merge(void) {
     PageManager *pm = pm_open("test_delete7.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     
     root_id = insert(bp, root_id, 10, "ten");
@@ -181,7 +181,7 @@ static void test_delete_cascade_merge(void) {
      * collapses.  Final state: single leaf root [10,20,50].
      */
     PageManager *pm = pm_open("test_delete_cascade.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
 
     root_id = insert(bp, root_id, 10, "ten");

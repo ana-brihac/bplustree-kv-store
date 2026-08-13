@@ -1,3 +1,4 @@
+void *dummy_raw;
 /*
  * test_split_leaf.c
  *
@@ -39,13 +40,13 @@ static page_id_t build_full_leaf(BufferPool *bp) {
 
 static void test_split_returns_new_leaf(void) {
     PageManager *pm = pm_open("test_split_leaf1.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t left_id = build_full_leaf(bp);
     
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
     
-    Node *right = split_leaf(bp, left);
+    Node *right = split_leaf(bp, left, &dummy_raw);
 
     ASSERT_NOT_NULL("split_new_leaf_not_null", right);
     ASSERT("split_new_leaf_is_leaf", right->is_leaf == true, "new node should be a leaf");
@@ -61,13 +62,13 @@ static void test_split_returns_new_leaf(void) {
 
 static void test_split_key_counts(void) {
     PageManager *pm = pm_open("test_split_leaf2.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t left_id = build_full_leaf(bp);
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
     
     int original_count = left->num_keys;
-    Node *right = split_leaf(bp, left);
+    Node *right = split_leaf(bp, left, &dummy_raw);
 
     ASSERT_INT_EQ("split_left_num_keys",  original_count / 2,             left->num_keys);
     ASSERT_INT_EQ("split_right_num_keys", original_count - original_count / 2, right->num_keys);
@@ -82,11 +83,11 @@ static void test_split_key_counts(void) {
 
 static void test_split_key_distribution(void) {
     PageManager *pm = pm_open("test_split_leaf3.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t left_id = build_full_leaf(bp);
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
-    Node *right = split_leaf(bp, left);
+    Node *right = split_leaf(bp, left, &dummy_raw);
 
     ASSERT_INT_EQ("split_left_key0",  10, left->keys[0]);
     ASSERT_INT_EQ("split_left_key1",  20, left->keys[1]);
@@ -103,11 +104,11 @@ static void test_split_key_distribution(void) {
 
 static void test_split_guidepost(void) {
     PageManager *pm = pm_open("test_split_leaf4.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t left_id = build_full_leaf(bp);
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
-    Node *right = split_leaf(bp, left);
+    Node *right = split_leaf(bp, left, &dummy_raw);
 
     ASSERT_INT_EQ("split_guidepost_in_right", 30, right->keys[0]);
 
@@ -121,11 +122,11 @@ static void test_split_guidepost(void) {
 
 static void test_split_sibling_pointer(void) {
     PageManager *pm = pm_open("test_split_leaf5.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t left_id = build_full_leaf(bp);
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
-    Node *right = split_leaf(bp, left);
+    Node *right = split_leaf(bp, left, &dummy_raw);
 
     ASSERT("split_sibling_pointer_set",  left->data.leaf.next_id == right->page_id, "left->next should point to right");
     ASSERT("split_sibling_next_null", right->data.leaf.next_id == INVALID_PAGE_ID, "right->next should be INVALID_PAGE_ID");
@@ -140,11 +141,11 @@ static void test_split_sibling_pointer(void) {
 
 static void test_split_cleared_slots(void) {
     PageManager *pm = pm_open("test_split_leaf6.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t left_id = build_full_leaf(bp);
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
-    Node *right = split_leaf(bp, left);
+    Node *right = split_leaf(bp, left, &dummy_raw);
 
     ASSERT("split_left_values_cleared_2", left->data.leaf.values[2] == 0, "should be 0");
     ASSERT("split_left_values_cleared_3", left->data.leaf.values[3] == 0, "should be 0");
@@ -159,11 +160,11 @@ static void test_split_cleared_slots(void) {
 
 static void test_split_search_both_halves(void) {
     PageManager *pm = pm_open("test_split_leaf7.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t left_id = build_full_leaf(bp);
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
-    Node *right = split_leaf(bp, left);
+    Node *right = split_leaf(bp, left, &dummy_raw);
     
     // In our disk-backed system, search takes (BufferPool, page_id_t, key)
     // Here left and right are nodes in memory, search won't work on them directly

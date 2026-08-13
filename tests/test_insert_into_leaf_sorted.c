@@ -23,7 +23,7 @@
 
 static void test_single_insert(void) {
     PageManager *pm = pm_open("test_leaf1.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);
@@ -44,7 +44,7 @@ static void test_single_insert(void) {
 
 static void test_out_of_order_inserts(void) {
     PageManager *pm = pm_open("test_leaf2.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);
@@ -70,7 +70,7 @@ static void test_out_of_order_inserts(void) {
 
 static void test_prepend(void) {
     PageManager *pm = pm_open("test_leaf3.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);
@@ -93,7 +93,7 @@ static void test_prepend(void) {
 
 static void test_middle_insert(void) {
     PageManager *pm = pm_open("test_leaf4.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);
@@ -116,7 +116,7 @@ static void test_middle_insert(void) {
 
 static void test_duplicate_rejected(void) {
     PageManager *pm = pm_open("test_leaf5.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);
@@ -137,7 +137,7 @@ static void test_duplicate_rejected(void) {
 
 static void test_fill_to_max(void) {
     PageManager *pm = pm_open("test_leaf6.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);

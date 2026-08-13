@@ -23,7 +23,7 @@
 
 static void test_insert_empty(void) {
     PageManager *pm = pm_open("test_insert_empty.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(bp, root_id, 10, "ten");
 
@@ -45,7 +45,7 @@ static void test_insert_empty(void) {
 
 static void test_insert_sort_order(void) {
     PageManager *pm = pm_open("test_insert_sort.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(bp, root_id, 20, "twenty");
     root_id = insert(bp, root_id, 5,  "five");
@@ -71,7 +71,7 @@ static void test_insert_sort_order(void) {
 
 static void test_insert_duplicate(void) {
     PageManager *pm = pm_open("test_insert_dup.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(bp, root_id, 10, "ten");
     root_id = insert(bp, root_id, 10, "duplicate");

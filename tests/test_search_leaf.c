@@ -5,7 +5,7 @@
 
 static void test_search_leaf_existing(void) {
     PageManager *pm = pm_open("test_sl1.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
     
     root_id = insert(bp, root_id, 10, "ten");
@@ -23,7 +23,7 @@ static void test_search_leaf_existing(void) {
 
 static void test_search_leaf_missing(void) {
     PageManager *pm = pm_open("test_sl2.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
 
     root_id = insert(bp, root_id, 10, "ten");
@@ -41,7 +41,7 @@ static void test_search_leaf_missing(void) {
 
 static void test_search_leaf_empty(void) {
     PageManager *pm = pm_open("test_sl3.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t root_id = INVALID_PAGE_ID;
 
     ASSERT_NULL("search_leaf_empty_tree", search(bp, root_id, 10));

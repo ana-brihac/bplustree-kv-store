@@ -29,7 +29,7 @@ static void test_createTree(void) {
 
 static void test_create_leaf_node(void) {
     PageManager *pm = pm_open("test_create_leaf.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t leaf_id = create_leaf_node(bp);
     ASSERT_NOT_NULL("create_leaf_returns_valid_id", leaf_id != INVALID_PAGE_ID ? (void*)1 : NULL);
     
@@ -55,7 +55,7 @@ static void test_create_leaf_node(void) {
 
 static void test_create_inner_node(void) {
     PageManager *pm = pm_open("test_create_inner.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, "test_wal.log");
     page_id_t inner_id = create_inner_node(bp);
     ASSERT_NOT_NULL("create_inner_returns_valid_id", inner_id != INVALID_PAGE_ID ? (void*)1 : NULL);
 
