@@ -17,7 +17,9 @@ TESTS = test_recovery test_create \
         test_page_manager \
         test_buffer_pool \
         test_wal \
-        test_checkpoint
+        test_checkpoint \
+        stress_workload \
+        verify_stress
 
 BIN_DIR     = tests/bin
 RESULT_DIR  = tests/results
