@@ -93,11 +93,15 @@ bool pm_read_page(PageManager *pm, page_id_t page_id, void *buffer) {
 }
 
 bool pm_write_page(PageManager *pm, page_id_t page_id, const void *buffer) {
-	if (page_id >= pm->num_pages) { // check if th epage actually exists in the page manager
-        return false;
-    }
+        if (page_id >= pm->num_pages) { 
+            // Grow the file if necessary (important for WAL recovery!)
+            off_t offset = (page_id + 1) * PAGE_SIZE - 1;
+            lseek(pm->fd, offset, SEEK_SET);
+            write(pm->fd, "", 1); // write 1 byte to extend file
+            pm->num_pages = page_id + 1;
+        }
 
-	off_t offset = page_id * PAGE_SIZE; // calculate the offset for the new page
+        off_t offset = page_id * PAGE_SIZE; // calculate the offset for the new page
 
 	off_t seek_ret = lseek(pm->fd, offset, SEEK_SET); // seek that offset
 

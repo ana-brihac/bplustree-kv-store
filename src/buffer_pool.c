@@ -4,10 +4,10 @@
 #include <stdint.h>
 #include "buffer_pool.h"
 
-BufferPool *bp_create(PageManager *pm, const char*filename) {
+BufferPool *bp_create(PageManager *pm, WAL *wal) {
 	// we need to allocate memory for the new bp
 	BufferPool *new_bp = malloc(sizeof(BufferPool));
-	new_bp->wal = wal_open(filename);
+	new_bp->wal = wal;
 
 	if (!new_bp) { // checking if we have memory
 		return NULL;
@@ -148,7 +148,7 @@ void bp_unpin(BufferPool *bp, page_id_t page_id, bool mark_dirty) {
 	if (frame_idx != -1) { // checking if we found the right page
 		if (mark_dirty) { // if the caller modified it, write to WAL
 			wal_append(bp->wal, page_id, bp->frames[frame_idx].data);
-			wal_fsync(bp->wal);
+			// wal_fsync(bp->wal);
 			bp->frames[frame_idx].is_dirty = true;
 		}
 
