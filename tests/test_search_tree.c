@@ -4,44 +4,48 @@
 #include "../src/serialize.h"
 
 static void test_search_tree_existing(void) {
-    PageManager *pm = pm_open("test_st1.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_st1.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_st1.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
     
     // Insert enough keys to cause a split (assuming MAX_KEYS = 4)
-    root_id = insert(bp, root_id, 10, "ten");
-    root_id = insert(bp, root_id, 20, "twenty");
-    root_id = insert(bp, root_id, 30, "thirty");
-    root_id = insert(bp, root_id, 40, "forty");
-    root_id = insert(bp, root_id, 50, "fifty");
+    root_id = insert(tree, 10, "ten");
+    root_id = insert(tree, 20, "twenty");
+    root_id = insert(tree, 30, "thirty");
+    root_id = insert(tree, 40, "forty");
+    root_id = insert(tree, 50, "fifty");
 
-    ASSERT_STR_EQ("search_tree_left",  "ten",   (char*)search(bp, root_id, 10));
-    ASSERT_STR_EQ("search_tree_mid",   "thirty",(char*)search(bp, root_id, 30));
-    ASSERT_STR_EQ("search_tree_right", "fifty", (char*)search(bp, root_id, 50));
+    ASSERT_STR_EQ("search_tree_left",  "ten",   (char*)search(tree, 10));
+    ASSERT_STR_EQ("search_tree_mid",   "thirty",(char*)search(tree, 30));
+    ASSERT_STR_EQ("search_tree_right", "fifty", (char*)search(tree, 50));
 
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_st1.db");
+    tree_close(tree);
+        remove("test_st1.db");
 }
 
 static void test_search_tree_missing(void) {
-    PageManager *pm = pm_open("test_st2.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_st2.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_st2.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
 
-    root_id = insert(bp, root_id, 10, "ten");
-    root_id = insert(bp, root_id, 20, "twenty");
-    root_id = insert(bp, root_id, 30, "thirty");
-    root_id = insert(bp, root_id, 40, "forty");
-    root_id = insert(bp, root_id, 50, "fifty");
+    root_id = insert(tree, 10, "ten");
+    root_id = insert(tree, 20, "twenty");
+    root_id = insert(tree, 30, "thirty");
+    root_id = insert(tree, 40, "forty");
+    root_id = insert(tree, 50, "fifty");
 
-    ASSERT_NULL("search_tree_missing_left",  search(bp, root_id, 5));
-    ASSERT_NULL("search_tree_missing_mid",   search(bp, root_id, 25));
-    ASSERT_NULL("search_tree_missing_right", search(bp, root_id, 99));
+    ASSERT_NULL("search_tree_missing_left",  search(tree, 5));
+    ASSERT_NULL("search_tree_missing_mid",   search(tree, 25));
+    ASSERT_NULL("search_tree_missing_right", search(tree, 99));
 
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_st2.db");
+    tree_close(tree);
+        remove("test_st2.db");
 }
 
 int main(void) {

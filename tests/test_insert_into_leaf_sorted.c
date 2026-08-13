@@ -22,8 +22,11 @@
 #include "../src/serialize.h"
 
 static void test_single_insert(void) {
-    PageManager *pm = pm_open("test_leaf1.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_leaf1.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_leaf1.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);
@@ -37,14 +40,16 @@ static void test_single_insert(void) {
     serialize_node(leaf, raw);
     bp_unpin(bp, leaf_id, true);
     free(leaf);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_leaf1.db");
+    tree_close(tree);
+        remove("test_leaf1.db");
 }
 
 static void test_out_of_order_inserts(void) {
-    PageManager *pm = pm_open("test_leaf2.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_leaf2.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_leaf2.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);
@@ -63,14 +68,16 @@ static void test_out_of_order_inserts(void) {
     serialize_node(leaf, raw);
     bp_unpin(bp, leaf_id, true);
     free(leaf);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_leaf2.db");
+    tree_close(tree);
+        remove("test_leaf2.db");
 }
 
 static void test_prepend(void) {
-    PageManager *pm = pm_open("test_leaf3.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_leaf3.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_leaf3.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);
@@ -86,14 +93,16 @@ static void test_prepend(void) {
     serialize_node(leaf, raw);
     bp_unpin(bp, leaf_id, true);
     free(leaf);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_leaf3.db");
+    tree_close(tree);
+        remove("test_leaf3.db");
 }
 
 static void test_middle_insert(void) {
-    PageManager *pm = pm_open("test_leaf4.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_leaf4.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_leaf4.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);
@@ -109,14 +118,16 @@ static void test_middle_insert(void) {
     serialize_node(leaf, raw);
     bp_unpin(bp, leaf_id, true);
     free(leaf);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_leaf4.db");
+    tree_close(tree);
+        remove("test_leaf4.db");
 }
 
 static void test_duplicate_rejected(void) {
-    PageManager *pm = pm_open("test_leaf5.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_leaf5.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_leaf5.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);
@@ -130,14 +141,16 @@ static void test_duplicate_rejected(void) {
     serialize_node(leaf, raw);
     bp_unpin(bp, leaf_id, true);
     free(leaf);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_leaf5.db");
+    tree_close(tree);
+        remove("test_leaf5.db");
 }
 
 static void test_fill_to_max(void) {
-    PageManager *pm = pm_open("test_leaf6.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_leaf6.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_leaf6.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);
@@ -154,9 +167,8 @@ static void test_fill_to_max(void) {
     serialize_node(leaf, raw);
     bp_unpin(bp, leaf_id, true);
     free(leaf);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_leaf6.db");
+    tree_close(tree);
+        remove("test_leaf6.db");
 }
 
 int main(void) {

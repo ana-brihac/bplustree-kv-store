@@ -4,12 +4,15 @@
 #include "../src/serialize.h"
 
 static void test_fill_three(void) {
-    PageManager *pm = pm_open("test_fill1.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_fill1.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_fill1.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
-    root_id = insert(bp, root_id, 10, "v1");
-    root_id = insert(bp, root_id, 20, "v2");
-    root_id = insert(bp, root_id, 30, "v3");
+    root_id = insert(tree, 10, "v1");
+    root_id = insert(tree, 20, "v2");
+    root_id = insert(tree, 30, "v3");
 
     void *raw = bp_fetch_page(bp, root_id);
     Node *root = deserialize_node(raw);
@@ -22,18 +25,20 @@ static void test_fill_three(void) {
 
     bp_unpin(bp, root_id, false);
     free(root);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_fill1.db");
+    tree_close(tree);
+        remove("test_fill1.db");
 }
 
 static void test_fill_max_minus_one(void) {
-    PageManager *pm = pm_open("test_fill2.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_fill2.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_fill2.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
-    root_id = insert(bp, root_id, 100, "a");
-    root_id = insert(bp, root_id, 50,  "b");
-    root_id = insert(bp, root_id,  75, "c");
+    root_id = insert(tree, 100, "a");
+    root_id = insert(tree, 50,  "b");
+    root_id = insert(tree,  75, "c");
 
     void *raw = bp_fetch_page(bp, root_id);
     Node *root = deserialize_node(raw);
@@ -43,15 +48,18 @@ static void test_fill_max_minus_one(void) {
 
     bp_unpin(bp, root_id, false);
     free(root);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_fill2.db");
+    tree_close(tree);
+        remove("test_fill2.db");
 }
 
 static void test_fill_and_search(void) {
-    PageManager *pm = pm_open("test_fill3.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_fill3.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_fill3.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
+    tree->root_id = leaf_id;
     void *raw = bp_fetch_page(bp, leaf_id);
     Node *leaf = deserialize_node(raw);
 
@@ -65,13 +73,12 @@ static void test_fill_and_search(void) {
     bp_unpin(bp, leaf_id, true);
     free(leaf);
 
-    ASSERT_STR_EQ("fill_full_search_mid", "fifteen", (char*)search(bp, leaf_id, 15));
-    ASSERT_STR_EQ("fill_full_search_last", "thirty-five", (char*)search(bp, leaf_id, 35));
-    ASSERT_NULL("fill_full_search_missing", search(bp, leaf_id, 99));
+    ASSERT_STR_EQ("fill_full_search_mid", "fifteen", (char*)search(tree, 15));
+    ASSERT_STR_EQ("fill_full_search_last", "thirty-five", (char*)search(tree, 35));
+    ASSERT_NULL("fill_full_search_missing", search(tree, 99));
 
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_fill3.db");
+    tree_close(tree);
+        remove("test_fill3.db");
 }
 
 int main(void) {

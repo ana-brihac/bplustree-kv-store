@@ -6,7 +6,8 @@ static void test_bp_unpin_wal_logging(void) {
     int fd = mkstemp(wal_path);
     close(fd);
     
-    BufferPool *bp = bp_create(pm, wal_path);
+    WAL *wal = wal_open(wal_path);
+    BufferPool *bp = bp_create(pm, wal);
     
     page_id_t pid = pm_allocate_page(pm);
     void *data = bp_fetch_page(bp, pid);

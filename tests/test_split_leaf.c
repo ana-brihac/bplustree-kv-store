@@ -39,9 +39,13 @@ static page_id_t build_full_leaf(BufferPool *bp) {
 }
 
 static void test_split_returns_new_leaf(void) {
-    PageManager *pm = pm_open("test_split_leaf1.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_split_leaf1.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_split_leaf1.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t left_id = build_full_leaf(bp);
+    tree->root_id = left_id;
     
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
@@ -55,15 +59,18 @@ static void test_split_returns_new_leaf(void) {
     free(left);
     free(right); // split_leaf returns a heap-allocated deserialized node
     
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_split_leaf1.db");
+    tree_close(tree);
+        remove("test_split_leaf1.db");
 }
 
 static void test_split_key_counts(void) {
-    PageManager *pm = pm_open("test_split_leaf2.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_split_leaf2.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_split_leaf2.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t left_id = build_full_leaf(bp);
+    tree->root_id = left_id;
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
     
@@ -76,15 +83,18 @@ static void test_split_key_counts(void) {
     bp_unpin(bp, left_id, false);
     free(left);
     free(right);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_split_leaf2.db");
+    tree_close(tree);
+        remove("test_split_leaf2.db");
 }
 
 static void test_split_key_distribution(void) {
-    PageManager *pm = pm_open("test_split_leaf3.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_split_leaf3.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_split_leaf3.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t left_id = build_full_leaf(bp);
+    tree->root_id = left_id;
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
     Node *right = split_leaf(bp, left, &dummy_raw);
@@ -97,15 +107,18 @@ static void test_split_key_distribution(void) {
     bp_unpin(bp, left_id, false);
     free(left);
     free(right);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_split_leaf3.db");
+    tree_close(tree);
+        remove("test_split_leaf3.db");
 }
 
 static void test_split_guidepost(void) {
-    PageManager *pm = pm_open("test_split_leaf4.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_split_leaf4.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_split_leaf4.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t left_id = build_full_leaf(bp);
+    tree->root_id = left_id;
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
     Node *right = split_leaf(bp, left, &dummy_raw);
@@ -115,15 +128,18 @@ static void test_split_guidepost(void) {
     bp_unpin(bp, left_id, false);
     free(left);
     free(right);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_split_leaf4.db");
+    tree_close(tree);
+        remove("test_split_leaf4.db");
 }
 
 static void test_split_sibling_pointer(void) {
-    PageManager *pm = pm_open("test_split_leaf5.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_split_leaf5.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_split_leaf5.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t left_id = build_full_leaf(bp);
+    tree->root_id = left_id;
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
     Node *right = split_leaf(bp, left, &dummy_raw);
@@ -134,15 +150,18 @@ static void test_split_sibling_pointer(void) {
     bp_unpin(bp, left_id, false);
     free(left);
     free(right);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_split_leaf5.db");
+    tree_close(tree);
+        remove("test_split_leaf5.db");
 }
 
 static void test_split_cleared_slots(void) {
-    PageManager *pm = pm_open("test_split_leaf6.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_split_leaf6.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_split_leaf6.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t left_id = build_full_leaf(bp);
+    tree->root_id = left_id;
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
     Node *right = split_leaf(bp, left, &dummy_raw);
@@ -153,15 +172,18 @@ static void test_split_cleared_slots(void) {
     bp_unpin(bp, left_id, false);
     free(left);
     free(right);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_split_leaf6.db");
+    tree_close(tree);
+        remove("test_split_leaf6.db");
 }
 
 static void test_split_search_both_halves(void) {
-    PageManager *pm = pm_open("test_split_leaf7.db");
-    BufferPool *bp = bp_create(pm, "test_wal.log");
+    remove("test_split_leaf7.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_split_leaf7.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t left_id = build_full_leaf(bp);
+    tree->root_id = left_id;
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
     Node *right = split_leaf(bp, left, &dummy_raw);
@@ -178,17 +200,19 @@ static void test_split_search_both_halves(void) {
     serialize_node(right, r_raw);
     bp_unpin(bp, right_id, true);
     
+    page_id_t right_id_captured = right->page_id;
     free(left);
     free(right);
 
-    ASSERT_STR_EQ("split_search_left_10",  "ten",    (char*)search(bp, left_id,  10));
-    ASSERT_STR_EQ("split_search_left_20",  "twenty", (char*)search(bp, left_id,  20));
-    ASSERT_STR_EQ("split_search_right_30", "thirty", (char*)search(bp, right_id, 30));
-    ASSERT_STR_EQ("split_search_right_40", "forty",  (char*)search(bp, right_id, 40));
+    ASSERT_STR_EQ("split_search_left_10",  "ten",    (char*)search(tree,  10));
+    ASSERT_STR_EQ("split_search_left_20",  "twenty", (char*)search(tree,  20));
+    
+    tree->root_id = right_id_captured;
+    ASSERT_STR_EQ("split_search_right_30", "thirty", (char*)search(tree, 30));
+    ASSERT_STR_EQ("split_search_right_40", "forty",  (char*)search(tree, 40));
 
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_split_leaf7.db");
+    tree_close(tree);
+        remove("test_split_leaf7.db");
 }
 
 int main(void) {
