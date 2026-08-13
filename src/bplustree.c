@@ -3,6 +3,7 @@
 #include "bplustree.h"
 
 #include "serialize.h"
+#include "wal.h"
 
 page_id_t allocate_node_page(BufferPool *bp) {
     if (!bp || !bp->pm) return INVALID_PAGE_ID;
@@ -21,16 +22,25 @@ Tree *createTree() {
 
 page_id_t create_leaf_node(BufferPool *bp) {
 	page_id_t id = allocate_node_page(bp);
-	if (id == INVALID_PAGE_ID) return INVALID_PAGE_ID;
 
-	void *raw = bp_fetch_page(bp, id);
-	if (!raw) return INVALID_PAGE_ID;
-
-	Node *new_node = malloc(sizeof(Node));
-	if (!new_node) {
-		bp_unpin(bp, id, false);
+	if (id == INVALID_PAGE_ID) {
 		return INVALID_PAGE_ID;
 	}
+
+	void *raw = bp_fetch_page(bp, id);
+
+	if (!raw) {
+		return INVALID_PAGE_ID;
+	}
+
+	Node *new_node = malloc(sizeof(Node));
+
+	if (!new_node) {
+		bp_unpin(bp, id, false);
+
+		return INVALID_PAGE_ID;
+	}
+
 	new_node->page_id = id;
 	new_node->is_leaf = true;
 	new_node->num_keys = 0;
@@ -39,6 +49,7 @@ page_id_t create_leaf_node(BufferPool *bp) {
 	for (int i = 0; i < MAX_KEYS; i++) {
 		new_node->data.leaf.values[i] = (int64_t)(0);
 	}
+
 	new_node->data.leaf.next_id = INVALID_PAGE_ID;
 
 	serialize_node(new_node, raw);

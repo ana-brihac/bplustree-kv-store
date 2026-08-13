@@ -2,7 +2,6 @@
 #define WAL_H
 
 #include "page_manager.h"
-#include "buffer_pool.h"
 #include <stdbool.h>
 
 typedef struct {
@@ -21,5 +20,7 @@ WAL *wal_open(const char *filename); // open or create the WAL file
 bool wal_append(WAL *wal, page_id_t page_id, void *page_data);
 bool wal_fsync(WAL *wal);
 void wal_close(WAL *wal);
+
+
 
 #endif

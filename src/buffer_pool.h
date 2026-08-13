@@ -2,6 +2,7 @@
 #define BUFFER_POOL_H
 
 #include "page_manager.h"
+#include "wal.h"
 #include <stdbool.h>
 
 #define BUFFER_POOL_SIZE 64	// number of frames (pages) held in memory
@@ -23,12 +24,13 @@ typedef struct {
 
 typedef struct {
 	PageManager *pm;
+	WAL *wal;
 	Frame frames[BUFFER_POOL_SIZE];
 	int global_time;
 	HashNode *page_table[HASH_TABLE_SIZE];
 } BufferPool;
 
-BufferPool *bp_create(PageManager *pm);
+BufferPool *bp_create(PageManager *pm, const char*filename);
 void bp_destroy(BufferPool *bp); // flushes all dirty frames, frees memory
 
 /*
