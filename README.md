@@ -2,8 +2,9 @@
 
 A persistent, embedded key-value store written in C, implementing an on-disk B+Tree with page-based storage and an LRU buffer pool — inspired by the design of embedded engines like LMDB and SQLite's storage layer.
 
-## Status: 🚧 In progress (Moving to Disk & Buffer Pool)
-The core in-memory B+Tree structure is fully complete and heavily tested! 🎉 Next up is the page manager and LRU buffer pool to persist this beauty to disk.
+## Status: ✅ Complete (Fully Persistent with WAL Recovery)
+The core in-memory B+Tree structure is fully complete and heavily tested! 🎉
+We have successfully implemented the Page Manager, LRU Buffer Pool, Write-Ahead Logging (WAL) for durability, and crash recovery.
 
 ## ✨ Features (So far)
 
@@ -52,4 +53,7 @@ make test
 3. **Property & Stress Testing**: Tests like `test_validate` run massive randomized simulations (up to 1,000,000 randomized inserts and deletes), calling `validate_tree` after *every single operation* to ensure invariants are never broken.
 4. **Memory Leak Checks**: Everything is compiled with `-fsanitize=address`. If there is a single memory leak, dangling pointer, or out-of-bounds array access, the tests will immediately crash and report it.
 5. **Output Verification**: The outputs of the tests are automatically diffed against the golden reference files in `tests/expected/`.
-\n## Stress Testing\n\n✅ Survived 100 random crash-recovery cycles with zero data corruption or loss.
+
+## Stress Testing
+
+✅ Survived 100 random crash-recovery cycles with zero data corruption or loss.
