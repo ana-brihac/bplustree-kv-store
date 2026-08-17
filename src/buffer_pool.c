@@ -4,13 +4,15 @@
 #include <stdint.h>
 #include "buffer_pool.h"
 
-BufferPool *bp_create(PageManager *pm) {
+BufferPool *bp_create(PageManager *pm, WAL *wal) {
 	// we need to allocate memory for the new bp
 	BufferPool *new_bp = malloc(sizeof(BufferPool));
 
 	if (!new_bp) { // checking if we have memory
 		return NULL;
 	}
+	
+	new_bp->wal = wal;
 
 	// setting the bp variable
 	new_bp->pm = pm;
@@ -84,6 +86,9 @@ void *bp_fetch_page(BufferPool *bp, page_id_t page_id) {
 			}
 
 			if (bp->frames[i].pin_count == 0) {
+				if (bp->wal && wal_contains_page(bp->wal, bp->frames[i].page_id)) {
+					continue;
+				}
 				if (bp->frames[i].last_time_used < time_evict) {
 					k = i; 
 					time_evict = bp->frames[i].last_time_used;
@@ -143,14 +148,17 @@ void bp_unpin(BufferPool *bp, page_id_t page_id, bool mark_dirty) {
 	int frame_idx = hash_lookup(bp, page_id); 
 
 	if (frame_idx != -1) { // checking if we found the right page
-        if (bp->frames[frame_idx].pin_count > 0) { // decrementing the pin count
-				bp->frames[frame_idx].pin_count--;
-			}
+		if (mark_dirty) { // if the caller modified it, write to WAL
+			wal_append(bp->wal, page_id, bp->frames[frame_idx].data);
+			bp->frames[frame_idx].is_dirty = true;
+			
+			// trigger automatic checkpoint if WAL grows too large
+		}
 
-			if (mark_dirty) { // setting the page dirty 
-				bp->frames[frame_idx].is_dirty = true;
-			}
-    }
+		if (bp->frames[frame_idx].pin_count > 0) { // decrementing the pin count
+			bp->frames[frame_idx].pin_count--;
+		}
+	}
 }
 
 bool bp_flush_page(BufferPool *bp, page_id_t page_id) {

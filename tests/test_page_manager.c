@@ -27,8 +27,7 @@ int main() {
 
     // 4. Close
     pm_close(pm);
-
-    // 5. Reopen
+        // 5. Reopen
     pm = pm_open(db_filename);
     assert(pm != NULL);
     assert(pm->num_pages == 1);

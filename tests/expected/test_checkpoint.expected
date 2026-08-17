@@ -1,0 +1,4 @@
+WAL file size after 200 inserts: 119480 bytes
+Current WAL sequence number: 29
+Data integrity verified after automatic checkpointing.
+[PASS] crash_after_checkpoint

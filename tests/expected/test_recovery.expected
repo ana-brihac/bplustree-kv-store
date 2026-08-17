@@ -1,0 +1,3 @@
+[PASS] tree_valid_before_crash
+[PASS] tree2_valid_after_recovery
+[PASS] all_keys_found_after_recovery

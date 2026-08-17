@@ -21,15 +21,21 @@
 #include "../src/serialize.h"
 
 static void test_createTree(void) {
-    Tree *t = createTree();
+    remove("test_create_tree.db");
+    remove("test_wal.log");
+    Tree *t = tree_open("test_create_tree.db", "test_wal.log");
     ASSERT_NOT_NULL("create_tree_returns_non_null", t);
     ASSERT("create_tree_root_is_null", t->root_id == INVALID_PAGE_ID, "root should be INVALID_PAGE_ID");
-    free(t);
+    tree_close(t);
+    remove("test_create_tree.db");
 }
 
 static void test_create_leaf_node(void) {
-    PageManager *pm = pm_open("test_create_leaf.db");
-    BufferPool *bp = bp_create(pm);
+    remove("test_create_leaf.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_create_leaf.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     ASSERT_NOT_NULL("create_leaf_returns_valid_id", leaf_id != INVALID_PAGE_ID ? (void*)1 : NULL);
     
@@ -48,14 +54,16 @@ static void test_create_leaf_node(void) {
 
     bp_unpin(bp, leaf_id, false);
     free(leaf);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_create_leaf.db");
+    tree_close(tree);
+        remove("test_create_leaf.db");
 }
 
 static void test_create_inner_node(void) {
-    PageManager *pm = pm_open("test_create_inner.db");
-    BufferPool *bp = bp_create(pm);
+    remove("test_create_inner.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_create_inner.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t inner_id = create_inner_node(bp);
     ASSERT_NOT_NULL("create_inner_returns_valid_id", inner_id != INVALID_PAGE_ID ? (void*)1 : NULL);
 
@@ -73,9 +81,8 @@ static void test_create_inner_node(void) {
 
     bp_unpin(bp, inner_id, false);
     free(inner);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_create_inner.db");
+    tree_close(tree);
+        remove("test_create_inner.db");
 }
 
 int main(void) {

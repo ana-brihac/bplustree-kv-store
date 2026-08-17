@@ -58,7 +58,12 @@ page_id_t pm_allocate_page(PageManager *pm) {
 	
 	char buffer[PAGE_SIZE] = {0}; // creating a blank page_size buffer
 
-	write(pm->fd, buffer, PAGE_SIZE); // write the clean buffer to disk
+	ssize_t bytes_written = write(pm->fd, buffer, PAGE_SIZE);
+
+	if (bytes_written != PAGE_SIZE) {
+		/* Disk full or I/O error: do not increment num_pages, the page is invalid. */
+		return INVALID_PAGE_ID;
+	}
 
 	pm->num_pages ++; // increment the num of pages
 
@@ -72,7 +77,7 @@ bool pm_read_page(PageManager *pm, page_id_t page_id, void *buffer) {
 
 	off_t offset = page_id * PAGE_SIZE; // calculate the offset for the page location
 
-	int seek_ret = lseek(pm->fd, offset, SEEK_SET); // seek that offset
+	off_t seek_ret = lseek(pm->fd, offset, SEEK_SET); // seek that offset
 
 	if (seek_ret == (off_t)-1) {
 		return false;
@@ -88,11 +93,15 @@ bool pm_read_page(PageManager *pm, page_id_t page_id, void *buffer) {
 }
 
 bool pm_write_page(PageManager *pm, page_id_t page_id, const void *buffer) {
-	if (page_id >= pm->num_pages) { // check if th epage actually exists in the page manager
-        return false;
-    }
+        if (page_id >= pm->num_pages) { 
+            // Grow the file if necessary (important for WAL recovery!)
+            off_t offset = (page_id + 1) * PAGE_SIZE - 1;
+            lseek(pm->fd, offset, SEEK_SET);
+            write(pm->fd, "", 1); // write 1 byte to extend file
+            pm->num_pages = page_id + 1;
+        }
 
-	off_t offset = page_id * PAGE_SIZE; // calculate the offset for the new page
+        off_t offset = page_id * PAGE_SIZE; // calculate the offset for the new page
 
 	off_t seek_ret = lseek(pm->fd, offset, SEEK_SET); // seek that offset
 

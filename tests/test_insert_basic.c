@@ -22,10 +22,13 @@
 #include "../src/serialize.h"
 
 static void test_insert_empty(void) {
-    PageManager *pm = pm_open("test_insert_empty.db");
-    BufferPool *bp = bp_create(pm);
+    remove("test_insert_empty.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_insert_empty.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
-    root_id = insert(bp, root_id, 10, "ten");
+    root_id = insert(tree, 10, "ten");
 
     ASSERT_NOT_NULL("insert_empty_returns_valid_id", root_id != INVALID_PAGE_ID ? (void*)1 : NULL);
     void *raw = bp_fetch_page(bp, root_id);
@@ -38,18 +41,20 @@ static void test_insert_empty(void) {
 
     bp_unpin(bp, root_id, false);
     free(root);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_insert_empty.db");
+    tree_close(tree);
+        remove("test_insert_empty.db");
 }
 
 static void test_insert_sort_order(void) {
-    PageManager *pm = pm_open("test_insert_sort.db");
-    BufferPool *bp = bp_create(pm);
+    remove("test_insert_sort.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_insert_sort.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
-    root_id = insert(bp, root_id, 20, "twenty");
-    root_id = insert(bp, root_id, 5,  "five");
-    root_id = insert(bp, root_id, 10, "ten");
+    root_id = insert(tree, 20, "twenty");
+    root_id = insert(tree, 5,  "five");
+    root_id = insert(tree, 10, "ten");
 
     void *raw = bp_fetch_page(bp, root_id);
     Node *root = deserialize_node(raw);
@@ -64,17 +69,19 @@ static void test_insert_sort_order(void) {
 
     bp_unpin(bp, root_id, false);
     free(root);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_insert_sort.db");
+    tree_close(tree);
+        remove("test_insert_sort.db");
 }
 
 static void test_insert_duplicate(void) {
-    PageManager *pm = pm_open("test_insert_dup.db");
-    BufferPool *bp = bp_create(pm);
+    remove("test_insert_dup.db");
+    remove("test_wal.log");
+    Tree *tree = tree_open("test_insert_dup.db", "test_wal.log");
+    PageManager *pm = tree->pm;
+    BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
-    root_id = insert(bp, root_id, 10, "ten");
-    root_id = insert(bp, root_id, 10, "duplicate");
+    root_id = insert(tree, 10, "ten");
+    root_id = insert(tree, 10, "duplicate");
 
     void *raw = bp_fetch_page(bp, root_id);
     Node *root = deserialize_node(raw);
@@ -84,9 +91,8 @@ static void test_insert_duplicate(void) {
 
     bp_unpin(bp, root_id, false);
     free(root);
-    bp_destroy(bp);
-    pm_close(pm);
-    remove("test_insert_dup.db");
+    tree_close(tree);
+        remove("test_insert_dup.db");
 }
 
 int main(void) {

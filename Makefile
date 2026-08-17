@@ -1,9 +1,9 @@
 CC     = gcc
 CFLAGS = -Wall -Wextra -g -fsanitize=address
-SRC    = src/bplustree.c src/page_manager.c src/buffer_pool.c src/serialize.c
+SRC    = src/bplustree.c src/page_manager.c src/buffer_pool.c src/serialize.c src/wal.c
 
 # ---------- test binaries ----------
-TESTS = test_create \
+TESTS = test_recovery test_create \
         test_insert_basic \
         test_insert_no_split \
         test_validate \
@@ -15,19 +15,29 @@ TESTS = test_create \
         test_delete \
         test_range_search \
         test_page_manager \
-        test_buffer_pool
+        test_buffer_pool \
+        test_wal \
+        test_checkpoint \
+        test_reopen \
+        test_merge_guard \
+        test_serialize
 
 BIN_DIR     = tests/bin
 RESULT_DIR  = tests/results
 EXPECT_DIR  = tests/expected
 
 BINS = $(addprefix $(BIN_DIR)/, $(TESTS))
+WORKLOADS = run_workload verify_workload stress_workload verify_stress
+BINS += $(addprefix $(BIN_DIR)/, $(WORKLOADS))
 
 # ---------- build ----------
 all: $(BINS)
 
-$(BIN_DIR)/test_buffer_pool: tests/test_buffer_pool.c src/buffer_pool.c src/page_manager.c | $(BIN_DIR)
-	$(CC) $(CFLAGS) -I. -o $@ src/buffer_pool.c src/page_manager.c $<
+$(BIN_DIR)/test_buffer_pool: tests/test_buffer_pool.c src/buffer_pool.c src/page_manager.c src/wal.c | $(BIN_DIR)
+	$(CC) $(CFLAGS) -I. -o $@ src/buffer_pool.c src/page_manager.c src/wal.c $<
+
+$(BIN_DIR)/test_wal: tests/test_wal.c src/wal.c src/page_manager.c src/buffer_pool.c | $(BIN_DIR)
+	$(CC) $(CFLAGS) -I. -o $@ src/wal.c src/page_manager.c src/buffer_pool.c $<
 
 $(BIN_DIR)/%: tests/%.c $(SRC) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -I. -o $@ $(SRC) $<
@@ -67,3 +77,14 @@ $(RESULT_DIR):
 # ---------- clean ----------
 clean:
 	rm -f $(BINS) $(RESULT_DIR)/*.actual $(RESULT_DIR)/*.err
+
+# ---------- chaos (kill-9 crash tests, requires Python 3) ----------
+# Runs random crash-and-recover cycles using SIGKILL against a live process.
+# Kept separate from 'make test' because they are slow (50-100 launch+kill
+# cycles) and produce non-deterministic output that can't be diff'd against
+# a golden file.
+chaos: $(BIN_DIR)/run_workload $(BIN_DIR)/verify_workload
+	python3 tests/chaos_test.py
+
+stress: $(BIN_DIR)/stress_workload $(BIN_DIR)/verify_stress
+	python3 tests/final_stress_test.py

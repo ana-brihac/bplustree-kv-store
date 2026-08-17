@@ -14,3 +14,7 @@
 [PASS] range_all_k_match
 [PASS] range_empty_not_found
 [PASS] range_empty_count
+[PASS] cross_boundary_count
+[PASS] cross_boundary_k0
+[PASS] cross_boundary_k1
+[PASS] cross_boundary_k2

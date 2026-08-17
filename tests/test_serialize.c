@@ -1,5 +1,5 @@
 #include "test_helpers.h"
-#include "serialize.h"
+#include "../src/serialize.h"
 #include <string.h>
 
 void test_serialize_leaf(void) {

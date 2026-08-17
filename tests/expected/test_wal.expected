@@ -1,0 +1,13 @@
+[PASS] open_returns_nonnull
+[PASS] open_invalid_path_returns_null
+[PASS] append_single_record_on_disk
+[PASS] seq_nums_are_sequential
+[PASS] next_seq_num_after_n_appends
+[PASS] file_size_equals_n_records
+[PASS] fsync_returns_true_on_open_wal
+[PASS] append_null_wal_returns_false
+[PASS] append_null_data_returns_false
+[PASS] append_negative_page_id_returns_false
+[PASS] fsync_null_returns_false
+[PASS] close_null_no_crash
+[PASS] reopen_resumes_seq_num
