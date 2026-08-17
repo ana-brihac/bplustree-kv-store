@@ -25,8 +25,20 @@ static void test_recovery_basic(void) {
     // We only close the file descriptors so they can be reopened.
     close(tree->pm->fd);
     close(tree->wal->fd);
+    for (int i = 0; i < BUFFER_POOL_SIZE; i ++) {
+        free(tree->bp->frames[i].data);
+    }
+    for (int i = 0; i < HASH_TABLE_SIZE; i++) {
+        HashNode *current = tree->bp->page_table[i];
+        while (current != NULL) {
+            HashNode *next = current->next;
+            free(current);
+            current = next;
+        }
+    }
     free(tree->bp);
     free(tree->pm);
+    free(tree->wal->buffer);
     free(tree->wal);
     free(tree);
     

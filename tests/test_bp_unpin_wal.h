@@ -22,6 +22,7 @@ static void test_bp_unpin_wal_logging(void) {
     
     bp_fetch_page(bp, pid);
     bp_unpin(bp, pid, true);
+    wal_fsync(bp->wal);
     
     stat(wal_path, &st);
     ASSERT("bp_unpin_dirty_wal", st.st_size > 0, "WAL should have data if mark_dirty=true");
@@ -35,6 +36,7 @@ static void test_bp_unpin_wal_logging(void) {
     ASSERT("bp_unpin_wal_data_match", record.page_data[0] == (char)0xBB, "WAL data should match modified page");
     
     bp_destroy(bp);
+    wal_close(wal);
     cleanup_tmp_pm(pm, pm_path);
     unlink(wal_path);
 }

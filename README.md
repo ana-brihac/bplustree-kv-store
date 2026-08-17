@@ -20,7 +20,7 @@ A fully compliant, classic B+Tree built from scratch in C.
 Here is a quick breakdown of the core functions powering the B+Tree (found in `src/bplustree.c`):
 
 ### Core Operations
-* `createTree()` — Initializes an empty B+Tree structure.
+* `tree_open(const char *filename, const char *wal_filename)` / `tree_close(Tree *tree)` — Opens or creates the persistent B+Tree and WAL, and safely shuts it down.
 * `insert(Node *root, int key, void *value)` — Inserts a new key-value pair into the tree. If a node gets too full (hits `MAX_KEYS`), it automatically triggers a split and pushes the median key up to the parent.
 * `search(Node *root, int key)` — Traverses down the inner nodes to find the exact leaf containing the key and returns its value. Returns `NULL` if not found.
 * `deleteNode(Node *root, int key)` — Removes a key from the tree. If a node drops below the minimum required keys (half full), it automatically borrows a key from a sibling or merges with one to maintain a perfectly balanced tree.
@@ -42,17 +42,26 @@ Here is a quick breakdown of the core functions powering the B+Tree (found in `s
 
 This project includes a rigorous, AddressSanitizer-backed test suite that stresses every edge case of the tree.
 
-To run the tests, simply execute:
+To run the unit + integration tests:
 ```bash
 make test
 ```
 
+To run the kill-9 chaos tests (requires Python 3):
+```bash
+make chaos   # 50 random SIGKILL cycles — verifies crash recovery
+make stress  # 100 random SIGKILL cycles — larger workload
+```
+
 ### What does `make test` do?
-1. It compiles all the individual test files located in the `tests/` directory into the `tests/bin/` folder.
-2. It executes them one by one.
-3. **Property & Stress Testing**: Tests like `test_validate` run massive randomized simulations (up to 1,000,000 randomized inserts and deletes), calling `validate_tree` after *every single operation* to ensure invariants are never broken.
-4. **Memory Leak Checks**: Everything is compiled with `-fsanitize=address`. If there is a single memory leak, dangling pointer, or out-of-bounds array access, the tests will immediately crash and report it.
-5. **Output Verification**: The outputs of the tests are automatically diffed against the golden reference files in `tests/expected/`.
+1. Compiles all test files in `tests/` into `tests/bin/` with `-fsanitize=address`.
+2. Executes them one by one and diffs output against golden files in `tests/expected/`.
+3. **Property & Stress Testing**: `test_validate` runs massive randomized simulations (up to 1,000,000 inserts and deletes), calling `validate_tree` after *every single operation*.
+4. **WAL & Recovery**: `test_recovery` verifies that data inserted before a simulated crash is fully restored on reopen. `test_checkpoint` additionally verifies data survives a crash immediately after a checkpoint (WAL already cleared, DB file must be complete). `test_reopen` verifies `root_id` persistence across a clean close/reopen cycle.
+5. **Merge Guard**: `test_merge_guard` verifies that `merge_with_sibling` refuses to merge when the combined key count would exceed `MAX_KEYS`, and that a valid merge still succeeds.
+
+### What do `make chaos` / `make stress` do?
+Launch a workload binary, let it run for a random 10–200 ms, then `kill -9` it. On each cycle, a verifier re-opens the database and checks that all previously committed data is intact. These tests exercise the exact torn-write scenarios that checksummed WAL records are designed to handle — something the in-process test suite cannot replicate.
 
 ## Stress Testing
 

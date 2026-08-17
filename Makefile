@@ -18,15 +18,16 @@ TESTS = test_recovery test_create \
         test_buffer_pool \
         test_wal \
         test_checkpoint \
-        stress_workload \
-        verify_stress
+        test_reopen \
+        test_merge_guard \
+        test_serialize
 
 BIN_DIR     = tests/bin
 RESULT_DIR  = tests/results
 EXPECT_DIR  = tests/expected
 
 BINS = $(addprefix $(BIN_DIR)/, $(TESTS))
-WORKLOADS = run_workload verify_workload
+WORKLOADS = run_workload verify_workload stress_workload verify_stress
 BINS += $(addprefix $(BIN_DIR)/, $(WORKLOADS))
 
 # ---------- build ----------
@@ -76,3 +77,14 @@ $(RESULT_DIR):
 # ---------- clean ----------
 clean:
 	rm -f $(BINS) $(RESULT_DIR)/*.actual $(RESULT_DIR)/*.err
+
+# ---------- chaos (kill-9 crash tests, requires Python 3) ----------
+# Runs random crash-and-recover cycles using SIGKILL against a live process.
+# Kept separate from 'make test' because they are slow (50-100 launch+kill
+# cycles) and produce non-deterministic output that can't be diff'd against
+# a golden file.
+chaos: $(BIN_DIR)/run_workload $(BIN_DIR)/verify_workload
+	python3 tests/chaos_test.py
+
+stress: $(BIN_DIR)/stress_workload $(BIN_DIR)/verify_stress
+	python3 tests/final_stress_test.py

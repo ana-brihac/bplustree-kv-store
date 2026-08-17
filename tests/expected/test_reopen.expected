@@ -1,0 +1,6 @@
+[PASS] clean_reopen_root_not_invalid
+[PASS] clean_reopen_root_id_matches
+[PASS] clean_reopen_tree_valid
+[PASS] clean_reopen_all_keys_found
+[PASS] wal_ordering_records_written
+[PASS] wal_ordering_data_survives

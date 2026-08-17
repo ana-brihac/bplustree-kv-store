@@ -61,7 +61,7 @@ page_id_t insert_into_parent(BufferPool *bp, page_id_t parent_id, page_id_t left
 bool try_borrow_from_left_sibling(BufferPool *bp, Node *node, Node *parent, int index);
 bool try_borrow_from_right_sibling(BufferPool *bp, Node *node, Node *parent, int index);
 Node *merge_with_sibling(BufferPool *bp, Node *node, Node *sibling, Node *parent, int index);
-Node *remove_from_parent(BufferPool *bp, Node *parent, int index);
+Node *remove_from_parent(Node *parent, int index);
 bool validate_tree(Tree *tree);
 bool key_check_less(Tree *tree, int n);
 bool key_check_greater_eq(Tree *tree, int n);

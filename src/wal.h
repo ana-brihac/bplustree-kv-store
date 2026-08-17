@@ -19,6 +19,7 @@ typedef struct {
     page_id_t page_id;
     int seq_num;
     uint32_t checksum;
+    int tx_records;
     char page_data[PAGE_SIZE];   // the serialized node content
 } WALRecord;
 
@@ -31,5 +32,6 @@ bool wal_recover(WAL *wal, BufferPool *bp);
 void wal_clear(WAL *wal);
 
 bool wal_checkpoint(BufferPool *bp);
+bool wal_contains_page(WAL *wal, page_id_t page_id);
 
 #endif

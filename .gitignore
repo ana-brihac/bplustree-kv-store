@@ -7,3 +7,14 @@ tests/bin/*
 # Test run results (generated, not source-controlled)
 tests/results/*
 !tests/results/.gitkeep
+
+# Root-level compiled binaries (scratch tools)
+get_ops
+run_test_wal
+
+# Test database and WAL files left over from development runs
+*.db
+*.wal
+*.log
+stress_tracker.txt
+chaos_tracker.txt

@@ -21,6 +21,8 @@
 #include "../src/serialize.h"
 
 static void test_createTree(void) {
+    remove("test_create_tree.db");
+    remove("test_wal.log");
     Tree *t = tree_open("test_create_tree.db", "test_wal.log");
     ASSERT_NOT_NULL("create_tree_returns_non_null", t);
     ASSERT("create_tree_root_is_null", t->root_id == INVALID_PAGE_ID, "root should be INVALID_PAGE_ID");

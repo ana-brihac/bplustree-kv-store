@@ -7,11 +7,12 @@
 BufferPool *bp_create(PageManager *pm, WAL *wal) {
 	// we need to allocate memory for the new bp
 	BufferPool *new_bp = malloc(sizeof(BufferPool));
-	new_bp->wal = wal;
 
 	if (!new_bp) { // checking if we have memory
 		return NULL;
 	}
+	
+	new_bp->wal = wal;
 
 	// setting the bp variable
 	new_bp->pm = pm;
@@ -63,8 +64,6 @@ void bp_destroy(BufferPool *bp) {
 		}
 	}
 
-	wal_close(bp->wal);
-
 	free(bp);
 }
 
@@ -87,6 +86,9 @@ void *bp_fetch_page(BufferPool *bp, page_id_t page_id) {
 			}
 
 			if (bp->frames[i].pin_count == 0) {
+				if (bp->wal && wal_contains_page(bp->wal, bp->frames[i].page_id)) {
+					continue;
+				}
 				if (bp->frames[i].last_time_used < time_evict) {
 					k = i; 
 					time_evict = bp->frames[i].last_time_used;
@@ -151,9 +153,6 @@ void bp_unpin(BufferPool *bp, page_id_t page_id, bool mark_dirty) {
 			bp->frames[frame_idx].is_dirty = true;
 			
 			// trigger automatic checkpoint if WAL grows too large
-			if (bp->wal && bp->wal->next_seq_num >= 100) {
-			    wal_checkpoint(bp);
-			}
 		}
 
 		if (bp->frames[frame_idx].pin_count > 0) { // decrementing the pin count

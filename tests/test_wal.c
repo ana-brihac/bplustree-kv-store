@@ -41,7 +41,10 @@ int main() {
     wal_close(wal);
     
     int fd = open(TEST_WAL_FILE, O_RDONLY);
-    assert(fd >= 0);
+    if (fd < 0) {
+        perror("open TEST_WAL_FILE failed");
+        assert(fd >= 0);
+    }
     WALRecord rec;
     ssize_t bytes = read(fd, &rec, sizeof(WALRecord));
     assert(bytes == sizeof(WALRecord));
