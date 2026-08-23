@@ -25,7 +25,6 @@ static void test_insert_empty(void) {
     remove("test_insert_empty.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_insert_empty.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(tree, 10, "ten");
@@ -49,7 +48,6 @@ static void test_insert_sort_order(void) {
     remove("test_insert_sort.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_insert_sort.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(tree, 20, "twenty");
@@ -77,7 +75,6 @@ static void test_insert_duplicate(void) {
     remove("test_insert_dup.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_insert_dup.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(tree, 10, "ten");

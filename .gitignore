@@ -18,3 +18,5 @@ run_test_wal
 *.log
 stress_tracker.txt
 chaos_tracker.txt
+crash_cycle_tracker.txt
+crash_cycle_tracker.tmp

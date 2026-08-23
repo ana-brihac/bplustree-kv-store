@@ -4,6 +4,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <assert.h>
+#include "src/compat.h"
 
 #define NUM_KEYS 1000
 

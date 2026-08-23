@@ -7,7 +7,6 @@ static void test_delete_existing(void) {
     remove("test_delete1.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_delete1.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
     
@@ -37,7 +36,6 @@ static void test_delete_first_key(void) {
     remove("test_delete2.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_delete2.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
     
@@ -65,7 +63,6 @@ static void test_delete_missing(void) {
     remove("test_delete3.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_delete3.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
     
@@ -90,8 +87,6 @@ static void test_delete_null(void) {
     remove("test_delete4.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_delete4.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
     
     page_id_t result = deleteNode(tree, 10);
     ASSERT("delete_from_null", result == INVALID_PAGE_ID, "should return INVALID_PAGE_ID");
@@ -104,17 +99,14 @@ static void test_delete_borrow_right(void) {
     remove("test_delete5.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_delete5.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root_id = INVALID_PAGE_ID;
     
-    root_id = insert(tree, 10, "ten");
-    root_id = insert(tree, 20, "twenty");
-    root_id = insert(tree, 30, "thirty");
-    root_id = insert(tree, 40, "forty");
-    root_id = insert(tree, 50, "fifty");
+    insert(tree, 10, "ten");
+    insert(tree, 20, "twenty");
+    insert(tree, 30, "thirty");
+    insert(tree, 40, "forty");
+    insert(tree, 50, "fifty");
 
-    root_id = deleteNode(tree, 10);
+    deleteNode(tree, 10);
 
     ASSERT_NULL("borrow_right_search_10_gone", (char*)search(tree, 10));
     ASSERT_STR_EQ("borrow_right_search_20", "twenty", (char*)search(tree, 20));
@@ -130,17 +122,14 @@ static void test_delete_borrow_left(void) {
     remove("test_delete6.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_delete6.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root_id = INVALID_PAGE_ID;
     
-    root_id = insert(tree, 10, "ten");
-    root_id = insert(tree, 20, "twenty");
-    root_id = insert(tree, 30, "thirty");
-    root_id = insert(tree, 40, "forty");
-    root_id = insert(tree, 50, "fifty");
+    insert(tree, 10, "ten");
+    insert(tree, 20, "twenty");
+    insert(tree, 30, "thirty");
+    insert(tree, 40, "forty");
+    insert(tree, 50, "fifty");
 
-    root_id = deleteNode(tree, 50);
+    deleteNode(tree, 50);
 
     ASSERT_NULL("borrow_left_search_50_gone", (char*)search(tree, 50));
     ASSERT_STR_EQ("borrow_left_search_10", "ten", (char*)search(tree, 10));
@@ -156,7 +145,6 @@ static void test_delete_merge(void) {
     remove("test_delete7.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_delete7.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
     
@@ -197,7 +185,6 @@ static void test_delete_cascade_merge(void) {
     remove("test_delete_cascade.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_delete_cascade.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
 

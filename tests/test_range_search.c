@@ -14,9 +14,6 @@ void test_basic_range() {
     remove("test_rs1.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_rs1.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root = INVALID_PAGE_ID;
     
     int keys[] = {10, 20, 30, 40, 50, 60, 70, 80};
     char *vals[] = {"v10", "v20", "v30", "v40", "v50", "v60", "v70", "v80"};
@@ -42,9 +39,6 @@ void test_range_outside() {
     remove("test_rs2.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_rs2.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root = INVALID_PAGE_ID;
     
     int keys[] = {10, 20, 30, 40, 50};
     char *vals[] = {"v10", "v20", "v30", "v40", "v50"};
@@ -68,9 +62,6 @@ void test_range_all() {
     remove("test_rs3.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_rs3.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root = INVALID_PAGE_ID;
     
     int keys[] = {10, 20, 30, 40, 50};
     char *vals[] = {"v10", "v20", "v30", "v40", "v50"};
@@ -95,9 +86,6 @@ void test_range_empty() {
     remove("test_rs4.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_rs4.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root = INVALID_PAGE_ID;
     
     int res_keys[20];
     void *res_vals[20];
@@ -120,9 +108,6 @@ void test_range_cross_leaf_boundary(void) {
     remove("test_rs5.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_rs5.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root = INVALID_PAGE_ID;
 
     int keys[] = {10, 20, 30, 40, 50, 60};
     char *vals[] = {"v10", "v20", "v30", "v40", "v50", "v60"};

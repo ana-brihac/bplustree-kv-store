@@ -55,7 +55,7 @@ void *bp_fetch_page(BufferPool *bp, page_id_t page_id); // returns pointer to in
 void bp_pin(BufferPool *bp, page_id_t page_id);
 void bp_unpin(BufferPool *bp, page_id_t page_id, bool mark_dirty);
 bool bp_flush_page(BufferPool *bp, page_id_t page_id);
-void bp_flush_all(BufferPool *bp);
+bool bp_flush_all(BufferPool *bp); // returns false if any dirty page failed to flush
 
 int hash_function(page_id_t page_id); // the hashing function
 void hash_insert(BufferPool *bp, page_id_t page_id, int frame_index);

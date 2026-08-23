@@ -26,7 +26,6 @@ static void test_fifth_insert_creates_root(void) {
     remove("test_split1.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_split1.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(tree, 10, "ten");
@@ -64,7 +63,6 @@ static void test_guidepost_placement(void) {
     remove("test_split2.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_split2.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(tree, 10, "ten");
@@ -95,14 +93,11 @@ static void test_search_after_split(void) {
     remove("test_split3.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_split3.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root_id = INVALID_PAGE_ID;
-    root_id = insert(tree, 10, "ten");
-    root_id = insert(tree, 20, "twenty");
-    root_id = insert(tree, 30, "thirty");
-    root_id = insert(tree, 40, "forty");
-    root_id = insert(tree, 50, "fifty");
+    insert(tree, 10, "ten");
+    insert(tree, 20, "twenty");
+    insert(tree, 30, "thirty");
+    insert(tree, 40, "forty");
+    insert(tree, 50, "fifty");
 
     ASSERT_STR_EQ("split_search_10",      "ten",    (char*)search(tree, 10));
     ASSERT_STR_EQ("split_search_20",      "twenty", (char*)search(tree, 20));
@@ -119,14 +114,11 @@ static void test_split_reverse_order(void) {
     remove("test_split4.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_split4.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root_id = INVALID_PAGE_ID;
-    root_id = insert(tree, 50, "fifty");
-    root_id = insert(tree, 40, "forty");
-    root_id = insert(tree, 30, "thirty");
-    root_id = insert(tree, 20, "twenty");
-    root_id = insert(tree, 10, "ten"); 
+    insert(tree, 50, "fifty");
+    insert(tree, 40, "forty");
+    insert(tree, 30, "thirty");
+    insert(tree, 20, "twenty");
+    insert(tree, 10, "ten"); 
 
     ASSERT_STR_EQ("split_reverse_search_10", "ten",    (char*)search(tree, 10));
     ASSERT_STR_EQ("split_reverse_search_30", "thirty", (char*)search(tree, 30));
@@ -140,18 +132,15 @@ static void test_two_splits(void) {
     remove("test_split5.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_split5.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root_id = INVALID_PAGE_ID;
-    root_id = insert(tree, 10, "v10");
-    root_id = insert(tree, 20, "v20");
-    root_id = insert(tree, 30, "v30");
-    root_id = insert(tree, 40, "v40");
-    root_id = insert(tree, 50, "v50"); 
-    root_id = insert(tree, 60, "v60");
-    root_id = insert(tree, 70, "v70");
-    root_id = insert(tree, 80, "v80");
-    root_id = insert(tree, 90, "v90"); 
+    insert(tree, 10, "v10");
+    insert(tree, 20, "v20");
+    insert(tree, 30, "v30");
+    insert(tree, 40, "v40");
+    insert(tree, 50, "v50"); 
+    insert(tree, 60, "v60");
+    insert(tree, 70, "v70");
+    insert(tree, 80, "v80");
+    insert(tree, 90, "v90"); 
 
     ASSERT_STR_EQ("split_two_search_10", "v10", (char*)search(tree, 10));
     ASSERT_STR_EQ("split_two_search_50", "v50", (char*)search(tree, 50));

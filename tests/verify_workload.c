@@ -33,7 +33,7 @@ int main(void) {
         for (int i = 0; i <= max_key; i++) {
             void *val = search(tree, i);
             if ((int64_t)val != i) {
-                printf("Data integrity failure: key %d not found! Expected %d, Got %ld\n", i, i, (int64_t)val);
+                printf("Data integrity failure: key %d not found! Expected %d, Got %lld\n", i, i, (long long)(int64_t)val);
                 tree_close(tree);
                 return 1;
             }

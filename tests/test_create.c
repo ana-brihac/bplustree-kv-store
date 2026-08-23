@@ -34,7 +34,6 @@ static void test_create_leaf_node(void) {
     remove("test_create_leaf.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_create_leaf.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     ASSERT_NOT_NULL("create_leaf_returns_valid_id", leaf_id != INVALID_PAGE_ID ? (void*)1 : NULL);
@@ -62,7 +61,6 @@ static void test_create_inner_node(void) {
     remove("test_create_inner.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_create_inner.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t inner_id = create_inner_node(bp);
     ASSERT_NOT_NULL("create_inner_returns_valid_id", inner_id != INVALID_PAGE_ID ? (void*)1 : NULL);

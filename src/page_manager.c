@@ -5,6 +5,10 @@
 #include <unistd.h>
 #include "page_manager.h"
 
+#ifndef O_BINARY
+#define O_BINARY 0 /* no-op on POSIX; required on Windows so raw page bytes aren't CRLF-translated */
+#endif
+
 PageManager *pm_open(const char *filename) {
 	if (!filename) { // don't have a valid name for a file
 		return NULL;
@@ -17,7 +21,7 @@ PageManager *pm_open(const char *filename) {
 		return NULL;
 	}
 
-	pm->fd = open(filename, O_RDWR | O_CREAT, 0666);
+	pm->fd = open(filename, O_RDWR | O_CREAT | O_BINARY, 0666);
 
 	if (pm->fd < 0) { // failed to open the file
 		free(pm);

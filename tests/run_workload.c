@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+#include "src/compat.h"
 
 int main(void) {
     remove("chaos_tracker.txt");

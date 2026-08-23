@@ -25,7 +25,6 @@ static void test_single_insert(void) {
     remove("test_leaf1.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_leaf1.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
@@ -48,7 +47,6 @@ static void test_out_of_order_inserts(void) {
     remove("test_leaf2.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_leaf2.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
@@ -76,7 +74,6 @@ static void test_prepend(void) {
     remove("test_leaf3.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_leaf3.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
@@ -101,7 +98,6 @@ static void test_middle_insert(void) {
     remove("test_leaf4.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_leaf4.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
@@ -126,7 +122,6 @@ static void test_duplicate_rejected(void) {
     remove("test_leaf5.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_leaf5.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);
@@ -149,7 +144,6 @@ static void test_fill_to_max(void) {
     remove("test_leaf6.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_leaf6.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     void *raw = bp_fetch_page(bp, leaf_id);

@@ -1,3 +1,7 @@
+#if defined(__unix__) || defined(__APPLE__)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -5,9 +9,14 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include "compat.h"
 
 #include "wal.h"
 #include "buffer_pool.h"
+
+#ifndef O_BINARY
+#define O_BINARY 0 /* no-op on POSIX; required on Windows so raw WAL record bytes aren't CRLF-translated */
+#endif
 
 uint32_t calculate_checksum(const void *data, size_t size) {
     const uint8_t *bytes = (const uint8_t *)data;
@@ -19,7 +28,7 @@ uint32_t calculate_checksum(const void *data, size_t size) {
 }
 
 WAL *wal_open(const char *filename) {
-    int fd = open(filename, O_RDWR | O_CREAT, 0666);
+    int fd = open(filename, O_RDWR | O_CREAT | O_BINARY, 0666);
     if (fd < 0) {
         return NULL;
     }
@@ -158,6 +167,17 @@ void wal_clear(WAL *wal) {
         return;
     }
     ftruncate(wal->fd, 0);
+    /* ftruncate() does not move the fd's write offset. Without this seek,
+     * the offset stays wherever wal_recover()'s read() loop left it (e.g.
+     * just after scanning N bytes of a recovered log), so the next
+     * wal_fsync() would write its records starting at that stale offset
+     * instead of 0 -- leaving a zero-byte hole at the head of the file.
+     * A zeroed WALRecord checksums to 0 and reads back as seq_num 0, so a
+     * later wal_recover() mistakes that hole for one bogus transaction,
+     * advances past it, and then rejects the real seq_num-0 record that
+     * follows as out of order -- discarding every record written after
+     * the hole. */
+    lseek(wal->fd, 0, SEEK_SET);
     wal->next_seq_num = 0;
 }
 
@@ -168,9 +188,15 @@ bool wal_checkpoint(BufferPool *bp) {
     // flush WAL to disk first so that no buffered records are lost if we crash before DB fsync
     wal_fsync(bp->wal);
     // flush all dirty pages from the buffer pool to the main DB file
-    bp_flush_all(bp);
+    if (!bp_flush_all(bp)) {
+        // a page failed to make it to disk -- the WAL still holds the only
+        // durable copy of that write, so it must NOT be truncated below
+        return false;
+    }
     // ensure the OS has written all those flushed pages to disk before we clear the WAL!
-    fsync(bp->pm->fd);
+    if (fsync(bp->pm->fd) < 0) {
+        return false;
+    }
     // truncate the WAL file to 0 byte
     if (ftruncate(bp->wal->fd, 0) < 0) {
         return false;

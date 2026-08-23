@@ -1,5 +1,5 @@
 CC     = gcc
-CFLAGS = -Wall -Wextra -g -fsanitize=address
+CFLAGS = -Wall -Wextra -g -fsanitize=address,undefined
 SRC    = src/bplustree.c src/page_manager.c src/buffer_pool.c src/serialize.c src/wal.c
 
 # ---------- test binaries ----------
@@ -27,8 +27,9 @@ RESULT_DIR  = tests/results
 EXPECT_DIR  = tests/expected
 
 BINS = $(addprefix $(BIN_DIR)/, $(TESTS))
-WORKLOADS = run_workload verify_workload stress_workload verify_stress
+WORKLOADS = run_workload verify_workload stress_workload verify_stress crash_cycle
 BINS += $(addprefix $(BIN_DIR)/, $(WORKLOADS))
+BINS += $(BIN_DIR)/test_stress_invariants
 
 # ---------- build ----------
 all: $(BINS)
@@ -58,13 +59,13 @@ test: all | $(RESULT_DIR)
 			printf "%-35s [\033[0;31mFAIL\033[0m] (crash / ASAN error)\n" "$$t"; \
 			cat "$(RESULT_DIR)/$$t.err"; \
 			FAIL=$$((FAIL + 1)); \
-		elif diff -q "$$expected" "$$actual" > /dev/null 2>&1; then \
+		elif diff -q -B --strip-trailing-cr "$$expected" "$$actual" > /dev/null 2>&1; then \
 			printf "%-35s [\033[0;32mPASS\033[0m]\n" "$$t"; \
 			PASS=$$((PASS + 1)); \
 		else \
 			printf "%-35s [\033[0;31mFAIL\033[0m] (output mismatch)\n" "$$t"; \
 			echo "  --- expected"; \
-			diff "$$expected" "$$actual" | grep '^[<>]' | sed 's/^/  /'; \
+			diff --strip-trailing-cr "$$expected" "$$actual" | grep '^[<>]' | sed 's/^/  /'; \
 			FAIL=$$((FAIL + 1)); \
 		fi; \
 	done; \
@@ -88,3 +89,14 @@ chaos: $(BIN_DIR)/run_workload $(BIN_DIR)/verify_workload
 
 stress: $(BIN_DIR)/stress_workload $(BIN_DIR)/verify_stress
 	python3 tests/final_stress_test.py
+
+# ---------- crash-cycle (repeated kill-9 against a persistent DB, requires Python 3) ----------
+# Unlike chaos/stress above, the DB is never wiped between cycles, so from the
+# second cycle onward tree_open() must recover a non-empty WAL left behind by
+# the previous SIGKILL -- the path wal_recover()+wal_clear() actually run.
+crash-cycle: $(BIN_DIR)/crash_cycle
+	python3 tests/crash_cycle_test.py
+
+# ---------- stress-invariants (in-process random ops, validated after every op) ----------
+stress-invariants: $(BIN_DIR)/test_stress_invariants
+	$(BIN_DIR)/test_stress_invariants 10000

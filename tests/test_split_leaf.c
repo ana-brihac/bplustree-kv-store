@@ -22,6 +22,24 @@
 #include "../src/page_manager.h"
 #include "../src/serialize.h"
 
+/* NOTE (updated during audit): `search` is now a tree-level API,
+ * `void *search(Tree *, int)`. These cases operate on bare leaf pages with
+ * no Tree/meta page around them, so they use a direct page-level lookup
+ * that preserves the original intent of the assertions. */
+static void *leaf_lookup(BufferPool *bp, page_id_t page_id, int key) {
+    void *raw = bp_fetch_page(bp, page_id);
+    if (!raw) return NULL;
+    Node *n = deserialize_node(raw);
+    if (!n) { bp_unpin(bp, page_id, false); return NULL; }
+    void *res = NULL;
+    for (int i = 0; i < n->num_keys; i++) {
+        if (n->keys[i] == key) { res = (void *)n->data.leaf.values[i]; break; }
+    }
+    bp_unpin(bp, page_id, false);
+    free(n);
+    return res;
+}
+
 /* Build a full leaf (MAX_KEYS=4) with keys 10,20,30,40 */
 static page_id_t build_full_leaf(BufferPool *bp) {
     page_id_t leaf_id = create_leaf_node(bp);
@@ -39,7 +57,7 @@ static page_id_t build_full_leaf(BufferPool *bp) {
 
 static void test_split_returns_new_leaf(void) {
     PageManager *pm = pm_open("test_split_leaf1.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, NULL);
     page_id_t left_id = build_full_leaf(bp);
     
     void *l_raw = bp_fetch_page(bp, left_id);
@@ -62,7 +80,7 @@ static void test_split_returns_new_leaf(void) {
 
 static void test_split_key_counts(void) {
     PageManager *pm = pm_open("test_split_leaf2.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, NULL);
     page_id_t left_id = build_full_leaf(bp);
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
@@ -84,7 +102,7 @@ static void test_split_key_counts(void) {
 
 static void test_split_key_distribution(void) {
     PageManager *pm = pm_open("test_split_leaf3.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, NULL);
     page_id_t left_id = build_full_leaf(bp);
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
@@ -106,7 +124,7 @@ static void test_split_key_distribution(void) {
 
 static void test_split_guidepost(void) {
     PageManager *pm = pm_open("test_split_leaf4.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, NULL);
     page_id_t left_id = build_full_leaf(bp);
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
@@ -125,7 +143,7 @@ static void test_split_guidepost(void) {
 
 static void test_split_sibling_pointer(void) {
     PageManager *pm = pm_open("test_split_leaf5.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, NULL);
     page_id_t left_id = build_full_leaf(bp);
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
@@ -145,7 +163,7 @@ static void test_split_sibling_pointer(void) {
 
 static void test_split_cleared_slots(void) {
     PageManager *pm = pm_open("test_split_leaf6.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, NULL);
     page_id_t left_id = build_full_leaf(bp);
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
@@ -165,7 +183,7 @@ static void test_split_cleared_slots(void) {
 
 static void test_split_search_both_halves(void) {
     PageManager *pm = pm_open("test_split_leaf7.db");
-    BufferPool *bp = bp_create(pm);
+    BufferPool *bp = bp_create(pm, NULL);
     page_id_t left_id = build_full_leaf(bp);
     void *l_raw = bp_fetch_page(bp, left_id);
     Node *left = deserialize_node(l_raw);
@@ -187,10 +205,10 @@ static void test_split_search_both_halves(void) {
     free(left);
     free(right);
 
-    ASSERT_STR_EQ("split_search_left_10",  "ten",    (char*)search(bp, left_id,  10));
-    ASSERT_STR_EQ("split_search_left_20",  "twenty", (char*)search(bp, left_id,  20));
-    ASSERT_STR_EQ("split_search_right_30", "thirty", (char*)search(bp, right_id, 30));
-    ASSERT_STR_EQ("split_search_right_40", "forty",  (char*)search(bp, right_id, 40));
+    ASSERT_STR_EQ("split_search_left_10",  "ten",    (char*)leaf_lookup(bp, left_id,  10));
+    ASSERT_STR_EQ("split_search_left_20",  "twenty", (char*)leaf_lookup(bp, left_id,  20));
+    ASSERT_STR_EQ("split_search_right_30", "thirty", (char*)leaf_lookup(bp, right_id, 30));
+    ASSERT_STR_EQ("split_search_right_40", "forty",  (char*)leaf_lookup(bp, right_id, 40));
 
     bp_destroy(bp);
     pm_close(pm);

@@ -27,7 +27,13 @@ Tree *tree_open(const char *filename, const char *wal_filename) {
     }
 
     newTree->wal = wal_open(wal_filename);
-    
+    if (!newTree->wal) {
+        printf("tree_open failed: wal_open returned NULL\n");
+        pm_close(newTree->pm);
+        free(newTree);
+        return NULL;
+    }
+
     newTree->bp = bp_create(newTree->pm, newTree->wal);
     if (!newTree->bp) {
         printf("tree_open failed: bp_create returned NULL\n");
@@ -37,10 +43,14 @@ Tree *tree_open(const char *filename, const char *wal_filename) {
         return NULL;
     }
 
-    if (newTree->wal && newTree->wal->next_seq_num > 0) {
-        wal_recover(newTree->wal, newTree->bp);
-        wal_clear(newTree->wal);
-    }
+    /* Always attempt recovery, even when wal_open's file-size-based guess put
+     * next_seq_num at 0 (e.g. a torn write truncated the very first record
+     * below sizeof(WALRecord)): wal_recover rescans from offset 0 and is a
+     * cheap no-op on a genuinely empty WAL, but skipping it here would leave
+     * torn bytes sitting at the head of the file, permanently blocking
+     * recovery of every valid record appended after them. */
+    wal_recover(newTree->wal, newTree->bp);
+    wal_clear(newTree->wal);
 
     if (newTree->pm->num_pages == 0) {
         page_id_t meta_id = pm_allocate_page(newTree->pm); // returns 0

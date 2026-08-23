@@ -187,16 +187,22 @@ bool bp_flush_page(BufferPool *bp, page_id_t page_id) {
 	return true;
 }
 
-void bp_flush_all(BufferPool *bp) {
+bool bp_flush_all(BufferPool *bp) {
 	if (!bp) {
-		return;
+		return false;
 	}
+
+	bool all_ok = true;
 
 	for (int i = 0; i < BUFFER_POOL_SIZE; i ++) {
 		if (bp->frames[i].is_dirty) { // flushing only the dirty pages
-			bp_flush_page(bp, bp->frames[i].page_id);
+			if (!bp_flush_page(bp, bp->frames[i].page_id)) {
+				all_ok = false;
+			}
 		}
 	}
+
+	return all_ok;
 }
 
 int hash_function(page_id_t page_id) {

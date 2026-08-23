@@ -7,7 +7,6 @@ static void test_fill_three(void) {
     remove("test_fill1.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_fill1.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(tree, 10, "v1");
@@ -33,7 +32,6 @@ static void test_fill_max_minus_one(void) {
     remove("test_fill2.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_fill2.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t root_id = INVALID_PAGE_ID;
     root_id = insert(tree, 100, "a");
@@ -56,7 +54,6 @@ static void test_fill_and_search(void) {
     remove("test_fill3.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_fill3.db", "test_wal.log");
-    PageManager *pm = tree->pm;
     BufferPool *bp = tree->bp;
     page_id_t leaf_id = create_leaf_node(bp);
     tree->root_id = leaf_id;

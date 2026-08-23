@@ -10,8 +10,6 @@ static void test_validate_empty_tree(void) {
     remove("test_val1.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_val1.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
     
     ASSERT("validate_empty_tree", validate_tree(tree), "INVALID_PAGE_ID root should be valid");
     
@@ -23,11 +21,8 @@ static void test_validate_single_leaf(void) {
     remove("test_val2.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_val2.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root = INVALID_PAGE_ID;
     
-    root = insert(tree, 10, "ten");
+    insert(tree, 10, "ten");
     ASSERT("validate_single_leaf", validate_tree(tree), "single-key leaf should be valid");
     
     tree_close(tree);
@@ -38,12 +33,9 @@ static void test_validate_after_inserts(void) {
     remove("test_val3.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_val3.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root = INVALID_PAGE_ID;
     
     for (int i = 1; i <= 15; i++) {
-        root = insert(tree, i * 10, (void*)(intptr_t)i);
+        insert(tree, i * 10, (void*)(intptr_t)i);
         ASSERT("validate_after_each_insert", validate_tree(tree), "tree must be valid after every insert");
     }
     
@@ -55,17 +47,14 @@ static void test_validate_after_deletes(void) {
     remove("test_val4.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_val4.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root = INVALID_PAGE_ID;
     
     for (int i = 1; i <= 15; i++) {
-        root = insert(tree, i * 10, (void*)(intptr_t)i);
+        insert(tree, i * 10, (void*)(intptr_t)i);
     }
 
     int keys[] = {50, 80, 30, 120, 10, 70, 140};
     for (int k = 0; k < 7; k++) {
-        root = deleteNode(tree, keys[k]);
+        deleteNode(tree, keys[k]);
         ASSERT("validate_after_each_delete", validate_tree(tree), "tree must be valid after every delete");
     }
     
@@ -107,9 +96,6 @@ static int run_property_test(int n_ops, unsigned int seed) {
     remove("test_val_stress.db");
     remove("test_wal.log");
     Tree *tree = tree_open("test_val_stress.db", "test_wal.log");
-    PageManager *pm = tree->pm;
-    BufferPool *bp = tree->bp;
-    page_id_t root = INVALID_PAGE_ID;
     
     Ref  *ref  = calloc(1, sizeof(Ref));
     if (!ref) { fprintf(stderr, "OOM\n"); return 1; }
@@ -121,12 +107,12 @@ static int run_property_test(int n_ops, unsigned int seed) {
 
         if (rand() % 2 == 0) {
             if (!ref_contains(ref, key)) {
-                root = insert(tree, key, (void*)(intptr_t)key);
+                insert(tree, key, (void*)(intptr_t)key);
             }
             ref_insert(ref, key);
         } else {
             if (ref_contains(ref, key)) {
-                root = deleteNode(tree, key);
+                deleteNode(tree, key);
             }
             ref_delete(ref, key);
         }
