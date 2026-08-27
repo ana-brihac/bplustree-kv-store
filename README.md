@@ -2,40 +2,40 @@
 
 A persistent, embedded key-value store written in C, implementing an on-disk B+Tree with page-based storage, an LRU buffer pool, and a Write-Ahead Log for crash recovery — inspired by the design of embedded engines like LMDB and SQLite's storage layer.
 
-## Status: ✅ Complete (Fully Persistent with WAL Recovery)
-The core in-memory B+Tree structure is fully complete and heavily tested! 🎉
-We have successfully implemented the Page Manager, LRU Buffer Pool, Write-Ahead Logging (WAL) for durability, and crash recovery.
+## Status: Complete (Fully Persistent with WAL Recovery)
+The core in-memory B+Tree structure is fully complete and heavily tested!
+I have successfully implemented the Page Manager, LRU Buffer Pool, Write-Ahead Logging (WAL) for durability, and crash recovery.
 
-## ✨ Features
+## Features
 
-### 🌳 The In-Memory B+Tree
+### The In-Memory B+Tree
 A fully compliant, classic B+Tree built from scratch in C. 
 * **Classic node design**: Inner nodes for routing, leaf nodes for data. All leaves are linked together at the same depth.
 * **O(log n) operations**: Fast inserts, exact-match searches, and deletions.
 * **Range queries**: Jump to the start key and ride the leaf sibling pointers to quickly collect ranges of data.
 * **Robust rebalancing**: Handles proactive splits on the way down, node merging, and sibling key-borrowing on deletion to maintain tree invariants perfectly.
 
-### 💾 Page Manager
+### Page Manager
 All tree data is persisted to a binary file on disk. The page manager owns the file and provides a clean read/write interface over fixed-size pages (`PAGE_SIZE = 4096` bytes).
 * **Page allocation**: `pm_allocate_page(pm)` — Appends a fresh zeroed page to the file and returns its `page_id`.
 * **Raw page I/O**: `pm_read_page(pm, page_id, buffer)` / `pm_write_page(pm, page_id, buffer)` — Reads or writes exactly one `PAGE_SIZE` chunk at the correct file offset.
 * **Open / close**: `pm_open(filename)` — Opens or creates the database file and recovers `num_pages` from the file size. `pm_close(pm)` — Flushes and frees everything.
 
-### ⚡ LRU Buffer Pool
+### LRU Buffer Pool
 A `BUFFER_POOL_SIZE = 64` frame cache that sits between the B+Tree and the page manager, so hot pages stay in memory instead of being read from disk every time.
 * **LRU eviction**: When all frames are occupied, the frame with the oldest `last_time_used` timestamp gets flushed and recycled.
 * **Dirty tracking**: Frames are only written back to disk when they are actually modified (`mark_dirty = true` on unpin), avoiding unnecessary I/O.
 * **O(1) lookup**: An open-addressed hash table (`HASH_TABLE_SIZE = 127`) maps `page_id → frame_index` in constant time.
 * **Pin / unpin contract**: Callers pin a page before using it and unpin it when done. The eviction policy only considers unpinned frames, so a page can never be evicted while it is actively in use.
 
-### 📝 Write-Ahead Log (WAL)
+### Write-Ahead Log (WAL)
 A redo-only append-only log that records every page write before it hits the buffer pool. Designed so that after a crash, the database can be recovered by replaying the log in sequence-number order.
 * **`wal_open(filename)`** — Opens or creates the WAL file. If the file already exists, `next_seq_num` is recovered from the file size so sequence numbers never collide with existing records.
 * **`wal_append(wal, page_id, page_data)`** — Appends a new `WALRecord` (containing `page_id`, `seq_num`, and a full `PAGE_SIZE` page snapshot) to the log. The sequence number is assigned atomically and the handle counter is incremented.
 * **`wal_fsync(wal)`** — Forces the OS to flush all buffered log data to the physical disk. This is the call that actually provides the durability guarantee.
 * **`wal_close(wal)`** — Implicitly calls `wal_fsync` before closing the file descriptor and freeing the handle.
 
-## 🛠️ API & Core Functions
+## API & Core Functions
 
 Here is a quick breakdown of the core functions powering the B+Tree (found in `src/bplustree.c`):
 
@@ -58,7 +58,7 @@ Here is a quick breakdown of the core functions powering the B+Tree (found in `s
 ### Validation
 * `validate_tree(Node *root)` — A strict invariant checker. It recursively verifies that all leaves are at the exact same depth, nodes respect minimum/maximum key limits, and keys are strictly sorted.
 
-## 🧪 Testing
+## Testing
 
 This project includes a rigorous, AddressSanitizer-backed test suite that stresses every edge case of the tree, the storage layer, the buffer pool, and the WAL.
 
@@ -85,4 +85,4 @@ Launch a workload binary, let it run for a random 10–200 ms, then `kill -9` it
 
 ## Stress Testing
 
-✅ Survived 100 random crash-recovery cycles with zero data corruption or loss.
+- Survived 100 random crash-recovery cycles with zero data corruption or loss.
