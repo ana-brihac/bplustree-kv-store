@@ -433,7 +433,7 @@ sequenceDiagram
     App->>Tree: insert(tree, k, v)
     Tree->>BP: fetch / mutate / unpin(dirty) leaf
     BP->>W: wal_append(leaf page)
-    Note over W: buffered in memory; a page<br/>dirtied twice in one call<br/>overwrites its record in place
+    Note over W: buffered in memory — a page<br/>dirtied twice in one call<br/>overwrites its record in place
     Tree->>BP: unpin(dirty) parent (if it split)
     BP->>W: wal_append(parent page)
     Tree->>BP: unpin(dirty) meta page 0 (if root changed)
